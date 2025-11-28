@@ -1,1 +1,1 @@
-Put your axiomatics_PDP.license here!
+Put your axiomatics_ADS.license (ADS v2) or axiomatics_PDP.license (ADS v1) here!

@@ -1,0 +1,21 @@
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp><fieldName>timestamp</fieldName></timestamp>
+                <logLevel/>
+                <loggerName/>
+                <stackTrace/>
+                <!-- custom provider -->
+                <provider class="com.axiomatics.ads.util.CustomRawMessageJsonProvider">
+                    <fieldName>message</fieldName>
+                </provider>
+            </providers>
+        </encoder>
+    </appender>
+    <root>
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

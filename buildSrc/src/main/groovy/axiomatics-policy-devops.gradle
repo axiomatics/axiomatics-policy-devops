@@ -45,6 +45,7 @@ configurations {
     adsCompile
     adsRuntimeV1.extendsFrom(pip)
     adsRuntimeV2
+    adsRuntimeV1.extendsFrom(implementation)
 }
 
 
@@ -57,33 +58,40 @@ dependencies {
 
     // The following 4 libs are needed because our PIPs decleare them as providedByHost and thus we need to manually
     // include them.
-    implementation ("jakarta.xml.bind:jakarta.xml.bind-api:2.3.3")
-    implementation ("javax.activation:activation:1.1.1")
-    implementation("org.glassfish.jaxb:jaxb-runtime:2.4.0-b180830.0438")
-    implementation("javax.xml.bind:jaxb-api:2.4.0-b180830.0359")
+    testRuntimeOnly ("jakarta.xml.bind:jakarta.xml.bind-api:2.3.3")
+    testRuntimeOnly ("javax.activation:activation:1.1.1")
+    testRuntimeOnly("org.glassfish.jaxb:jaxb-runtime:2.4.0-b180830.0438")
+    testRuntimeOnly("javax.xml.bind:jaxb-api:2.4.0-b180830.0359")
+
+    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:1.0.0"
 
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation('org.junit.jupiter:junit-jupiter')
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'ch.qos.logback:logback-classic:1.2.13'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '3.0'
-    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:1.0.69"
+    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:1.0.0"
 
     domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.10.1')
     domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.10.1')
 
-    adsCompile "com.axiomatics.access-decision-service:ads-service:2.1.1"
+    adsCompile "com.axiomatics.access-decision-service:ads-service:2.2.0"
 
     adsRuntimeV1 "com.axiomatics.access-decision-service:access-decision-service:1.17.1"
-    adsRuntimeV2 "com.axiomatics:access-decision-service:2.1.1"
+    adsRuntimeV2 "com.axiomatics:access-decision-service:2.2.0"
 
-    pip "com.axiomatics.attribute-connectors.http:http-attribute-connector:5.4.0@jar"
-    pip "com.axiomatics.attribute-connectors.parser:parser-attribute-connectors:1.0.3@jar"
-    pip "com.axiomatics.attribute-connectors.sql:sql-attribute-connector:6.3.0@jar"
-    pip "com.axiomatics.attribute-connectors.ldap:ldap-attribute-connector:6.3.1@jar"
-    pip "com.axiomatics.attribute-connectors.table:table-attribute-connector:7.1.0@jar"
+    pip "com.axiomatics.attribute-connectors.http:http-attribute-connector:5.5.0@jar"
+    pip "com.axiomatics.attribute-connectors.parser:parser-attribute-connectors:1.1.0@jar"
+    pip "com.axiomatics.attribute-connectors.sql:sql-attribute-connector:6.4.0@jar"
+    pip "com.axiomatics.attribute-connectors.ldap:ldap-attribute-connector:6.4.0@jar"
+    pip "com.axiomatics.attribute-connectors.table:table-attribute-connector:7.2.0@jar"
 
     alfac "com.axiomatics.alfa:alfac:1.5.2"
+}
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 task compileAlfaToPackage(type: JavaExec) {
@@ -184,10 +192,10 @@ task stageLibsForAds2(type: Copy) {
     into "${buildDir}/alfa/domain/ads/"
     from 'src/extra'
 }
-
 task stagePipsInLibFolderForAds2(type: Copy) {
-    into "${buildDir}/alfa/domain/ads/lib"
     from configurations.pip
+    from { tasks.jar.outputs.files }
+    into "${buildDir}/alfa/domain/ads/lib"
 }
 
 task readGitCommitInfo {
@@ -252,6 +260,7 @@ task readGitCommitInfo {
 stageAdsFiles.dependsOn stageDeploymentDescriptor
 stageAdsFiles.dependsOn stageResourcesForAds
 stageAdsFiles.dependsOn copyLicenses
+stagePipsInLibFolderForAds2.dependsOn jar
 
 runAds.dependsOn stageAdsFiles
 runAds.dependsOn stageLibsForAds2
@@ -261,7 +270,28 @@ runAdsV1.dependsOn stageAdsFiles
 
 rootProject.plugins.apply(AlfaPlugin)
 
+distributions {
+    deployment {
+        distributionBaseName  = 'deployment'
+        contents {
+            from project.configurations.adsRuntimeV2
+            from project.tasks.buildAuthzDomain.outputs
+            from project.file(project.extensions.alfa.deploymentDescriptor)
+            from project.file(project.extensions.alfa.licenseFile)
+            from project.file("Dockerfile")
+            into ('lib') {
+                from project.configurations.pip
+                from project.jar
+            }
+            into('.') {
+                exclude("README.md")
+                from 'src/extra'
+            }
 
+
+        }
+    }
+}
 
 
 

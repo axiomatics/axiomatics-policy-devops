@@ -1,0 +1,75 @@
+license: ${ADS_LICENSE:axiomatics_ADS.license}
+domain:
+  path: ${ADS_DOMAIN:./domain.yaml}
+
+# The main service hosting the ADS ABAC API on /authorize. TLS/SSL is disabled, for example if an Ingress or Routing doing TLS offloading.
+server:
+  port: ${ADS_PORT:8080}
+  ssl:
+    enabled: false
+# To enable SSL/TLS instead use the following configuration:
+#  ssl:
+#    enabled: true
+#    key-store: ${ADS_KEYSTORE_FILE}
+#    key-store-password: ${ADS_KEYSTORE_PASSWORD}
+#    key-store-type: ${ADS_KEYSTORE_TYPE} #eg: JKS, PKCS12
+
+
+# The management server is hosting the probes. The control plane normally expects them without authentication, so we
+# start these endpoints on a separate port without authentication. They should not be exposed publicly.
+# Probes endpoints for reference:
+# http://127.0.0.1:8082/health/startup
+# http://127.0.0.1:8082/health/readiness
+# http://127.0.0.1:8082/health/liveness
+management:
+  server:
+    port: ${ADS_MANAGEMENT_PORT:8082}
+    ssl:
+      enabled: false
+    authentication:
+      enabled: false
+
+# Basic authentication for the main ADS service. It is possible to put a hased value of the password here using the following notation# password:
+# password: "{bcrypt}$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG"
+# or using SHA-256 with environment variable:
+# password: "{sha256}${ADS_PASSWORD_SHA256}"
+spring:
+  security:
+    user:
+      name: ${ADS_USERNAME:pdp-user}
+      password: ${ADS_PASSWORD:secret}
+
+
+# Audit (evaluation event) format. Valid values are concise_json, verbose_json, concise (for XML), verbose (for XML)
+audit:
+  mode: verbose_json
+
+# ─────────────────────────────────────────────
+# Logging
+# ─────────────────────────────────────────────
+logging:
+  level:
+    root: ${ADS_LOGGER_ROOT_LEVEL:INFO}
+    com.axiomatics.audit: ${ADS_LOGGER_AUDIT_LEVEL:INFO}                # Enable audit logging if INFO or lower
+  # Logback configuration file which holds details about appenders, log file locations, patterns, etc.
+  config: logback-custom.xml
+
+# Configures the JDBC connection pool for attribute connectors using JDBC
+attributeConnectorContext:
+  jdbc:
+    connectionPool:
+      minimumSize: 2
+      maximumSize: ${ADS_JDBC_MAX_POOL:10}
+
+# Controls the number of concurrent evaluation threads, only for ABAC for MDP requests
+concurrentEvaluation:
+  numberOfWorkers: 3
+
+# Controls the distributed cache settings, which lets multiple ADS instances share attribute values
+distributedCache:
+  enabled: ${ADS_DISTCACHE_ENABLE:false}
+  port: ${ADS_DISTCACHE_PORT:9091}
+  mode: ${ADS_DISTCACHE_MODE:REPL_SYNC}
+  clusterName: ${ADS_DISTCACHE_CLUSTERNAME:axio-cache-cluster}
+  discoveryMethod: ${ADS_DISTCACHE_STACK:multicast}
+  dnsQuery: ${ADS_DISTCACHE_DNS_QUERY:abac-svc}

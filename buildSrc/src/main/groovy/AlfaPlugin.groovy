@@ -26,11 +26,6 @@ class AlfaPlugin implements Plugin<Project> {
         }
         project.logger.info("Access key id found ${accessKey}")
         project.extensions.create('alfa', AlfaExtension, project)
-        project.java {
-            toolchain {
-                languageVersion = JavaLanguageVersion.of(17)
-            }
-        }
         project.plugins.apply('distribution')
         project.getPluginManager().apply("com.palantir.docker")
         project.tasks.register("buildAuthzDomain", BuildAuthZDomainTask.class) {
@@ -51,7 +46,7 @@ class AlfaPlugin implements Plugin<Project> {
             }
         }
         project.configurations {
-            implementation.extendsFrom adsCompile
+            compileOnly.extendsFrom adsCompile
             implementation.extendsFrom pip
             ads.extendsFrom adsCompile
         }
