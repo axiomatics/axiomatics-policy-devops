@@ -1,0 +1,88 @@
+<configuration>
+    <springProperty name="build" source="build" defaultValue="na" />
+    <springProperty name="ADS_LOGGER_ROOT_LEVEL" source="ADS_LOGGER_ROOT_LEVEL"  defaultValue="INFO" />
+    <springProperty name="ADS_LOGGER_DISTCACHE_LEVEL" source="ADS_LOGGER_DISTCACHE_LEVEL"  defaultValue="INFO"/>
+    <springProperty name="ADS_LOGGER_MPING_LEVEL" source="ADS_LOGGER_MPING_LEVEL"  defaultValue="WARN"/>
+    <springProperty name="ADS_LOGGER_AUDIT_LEVEL" source="ADS_LOGGER_AUDIT_LEVEL"  defaultValue="INFO"/>
+
+
+    <!-- Console appender with JSON formatting -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+
+            <providers>
+                <timestamp>
+                    <fieldName>timestamp</fieldName>
+                    <pattern>yyyy-MM-dd'T'HH:mm:ss.SSS zzz</pattern>
+                </timestamp>
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+                <loggerName>
+                    <fieldName>logger</fieldName>
+                </loggerName>
+                <message />
+                <stackTrace>
+                    <fieldName>exception</fieldName>
+                </stackTrace>
+                <mdc/> <!-- include MDC(Mapped Diagnostic Context) properties for OpenTelemetry and distributed logging and tracing. You need to instrument ADS with your openTelemtry agent -->
+                <pattern>
+                    <pattern>
+                        {
+                        "abac-commit": "${build}"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
+        </encoder>
+    </appender>
+
+    <!-- Special audit appender -->
+    <appender name="AUDIT" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <fieldName>timestamp</fieldName>
+                    <pattern>yyyy-MM-dd'T'HH:mm:ss.SSS zzz</pattern>
+
+                </timestamp>
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+                <!-- <message /> If you are not using json or json_verbose for audit logging, uncomment this line to get normal message logging -->
+                <mdc/> <!-- include MDC(Mapped Diagnostic Context) properties for OpenTelemtry and distributed logging and tracing. You need to instrument ADS with your openTelemtry agent -->
+                <pattern>
+                    <pattern> <!-- shows an example how to customize the audit log with static fields or fields from environment -->
+                        {
+                        "abac-commit": "${build}",
+                        "audit": {"objecttype":"abac-audit"}
+                        }
+                    </pattern>
+                </pattern>
+                <!-- custom provider that encodes message as a json object instead of a string (with JSON) -->
+                <!-- only use this provider if audit mode is set to verbose_json or json -->
+                <provider class="com.axiomatics.ads.util.CustomRawMessageJsonProvider">
+                    <fieldName>message</fieldName>
+                </provider>
+            </providers>
+        </encoder>
+    </appender>
+
+    <!-- Customized log level for certain packages -->
+    <logger name="org.infinispan" level="${ADS_LOGGER_DISTCACHE_LEVEL}" />
+    <logger name="org.jgroups" level="${ADS_LOGGER_DISTCACHE_LEVEL}" />
+    <logger name="org.jgroups.protocols.MPING" level="${ADS_LOGGER_MPING_LEVEL}" />
+    <logger name="com.axiomatics.ads.health" level="INFO" />
+
+
+    <!-- Special audit logger -->
+    <logger name="com.axiomatics.audit.ads.eval" level="${ADS_LOGGER_AUDIT_LEVEL}" additivity="false">
+        <appender-ref ref="AUDIT" />
+    </logger>
+
+    <root level="${ADS_LOGGER_ROOT_LEVEL}">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>

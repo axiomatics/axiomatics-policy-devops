@@ -10,7 +10,7 @@ class AlfaExtension {
     String mainpolicy = null
     String deploymentDescriptor = "deployment.yaml"
     String srcDir = "src/authorizationDomain"
-    String licenseFile = null
+    String licenseFile = "license/axiomatics_ADS.license"
     String dockerName
     boolean extraAttributeIdCheck = true
     Project project

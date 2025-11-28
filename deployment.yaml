@@ -16,6 +16,17 @@ spring:
 authentication:
   enabled: false
 
+audit:
+  mode: verbose_json
+
+logging:
+  config: logback-json.xml
+  level:
+    root: ${LOGLEVEL:WARN}
+    com.axiomatics: ${AXIOMATICS_LOGLEVEL:INFO}
+
+    com.axiomatics.audit: ${AXIOMATICS_AUDITLOGS:INFO}
+
 ##───────────────────────────────────────────────────##
 ######### ADS V1 SAMPLE CONFIGURATION BELOW #########
 ##───────────────────────────────────────────────────##
