@@ -63,14 +63,14 @@ dependencies {
     testRuntimeOnly("org.glassfish.jaxb:jaxb-runtime:2.4.0-b180830.0438")
     testRuntimeOnly("javax.xml.bind:jaxb-api:2.4.0-b180830.0359")
 
-    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:1.0.0"
+    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:1.1.0"
 
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation('org.junit.jupiter:junit-jupiter')
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'ch.qos.logback:logback-classic:1.2.13'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '3.0'
-    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:1.0.0"
+    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:1.1.0"
 
     domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.10.1')
     domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.10.1')
