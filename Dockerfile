@@ -1,7 +1,7 @@
 #This is an ADS v1 example Dockerfile
 #For ADS v2 please see example in extra/exampleAds2Configuration folder
 
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 
 EXPOSE 8081 8082
 WORKDIR "ads"

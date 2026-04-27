@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class WaitAdsStartedTask extends DefaultTask {
 
     @Internal
-    String START_CONDITION_REGEXP = "^.*Domain with id.*was loaded\$"  //TODO, ADS2.0
+    String START_CONDITION_REGEXP = '^.*Started AdsApplication.*$'
 
     @Input
     AdmExtension adm
@@ -75,5 +75,3 @@ class WaitAdsStartedTask extends DefaultTask {
         }
     }
 }
-
-

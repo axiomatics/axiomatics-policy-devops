@@ -26,37 +26,3 @@ logging:
     com.axiomatics: ${AXIOMATICS_LOGLEVEL:INFO}
 
     com.axiomatics.audit: ${AXIOMATICS_AUDITLOGS:INFO}
-
-##───────────────────────────────────────────────────##
-######### ADS V1 SAMPLE CONFIGURATION BELOW #########
-##───────────────────────────────────────────────────##
-
-# license: ${LICENSE:-axiomatics_PDP.license}
-# domain: ${DOMAIN_CONFIG:-domain.yaml}
-
-# audit:
-#   mode: verbose
-
-# authentication:
-#   type: Basic
-#   user:
-#     username: pdp-user
-#     #password is 'secret'
-#     hashPassword: 2bb80d537b1da3e38bd30361aa855686bde0eacd7162fef6a25fe97bf527a25b
-# server:
-#   applicationConnectors:
-#     - type: http
-#       port: 8080
-#   adminConnectors:
-#     - type: http
-#       port: 8082
-#   requestLog:
-#     appenders:
-#       - type: console
-# logging:
-#   level: ${LOGLEVEL:-INFO}
-#   loggers:
-#     "com.axiomatics": INFO
-#   appenders:
-#     - type: console
-#       target: stdout
