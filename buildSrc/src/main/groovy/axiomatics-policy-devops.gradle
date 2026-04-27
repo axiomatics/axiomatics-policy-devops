@@ -66,14 +66,14 @@ dependencies {
     testRuntimeOnly("org.glassfish.jaxb:jaxb-runtime:2.4.0-b180830.0438")
     testRuntimeOnly("javax.xml.bind:jaxb-api:2.4.0-b180830.0359")
 
-    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.1"
+    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.2"
 
     testImplementation(platform("org.junit:junit-bom:5.14.3"))
     testImplementation('org.junit.jupiter:junit-jupiter')
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testRuntimeOnly 'ch.qos.logback:logback-classic:1.5.32'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '3.0'
-    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.1"
+    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.2"
 
     domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.13.0')
     domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.13.0')
@@ -89,7 +89,7 @@ dependencies {
     pipAds1 "com.axiomatics.attribute-connectors.ldap:ldap-attribute-connector:6.4.0@jar"
     pipAds1 "com.axiomatics.attribute-connectors.table:table-attribute-connector:7.2.0@jar"
 
-    authHubClient "com.axiomatics.alfa.test:authhub-apd-integration:26.1.1"
+    authHubClient "com.axiomatics.alfa.test:authhub-apd-integration:26.1.2"
     alfac "com.axiomatics.alfa:alfac:1.5.2"
 }
 java {
