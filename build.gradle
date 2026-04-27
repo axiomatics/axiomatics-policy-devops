@@ -10,7 +10,7 @@ alfa {
     mainpolicy "acme.Main"
     //withVisualTrace false //Disable evaluation traces of tests, speeds up the tests if you do not need the traces.
 
-    licenseFile "license/axiomatics_PDP.license"
+    licenseFile "license/axiomatics_ADS.license"
 
     repositories {
         //Add one or more ADM repositories to get push, pull, run, test and promote tasks

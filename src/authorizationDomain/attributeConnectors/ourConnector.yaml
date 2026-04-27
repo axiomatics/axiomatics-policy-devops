@@ -1,5 +1,43 @@
 className: com.axiomatics.attributeconnector.parser.json.ConnectorModule
-provides:
-  - user.role
-  - resource.location
-  - user.location
+providedAttributes:
+  - attributeName: user.role
+  - attributeName: resource.location
+  - attributeName: user.location
+configuration:
+  identifier: ourConnector
+  source:
+    json:
+      value: |
+        {
+            "users": {
+                "martin": {
+                    "role": "manager",
+                    "location": "stockholm"
+                },
+                "cecilia": {
+                    "role": "consultant",
+                    "location": "london"
+                }
+            },
+            "resources": {
+                "2": {
+                    "location": "stockholm"
+                },
+                "1": {
+                    "location": "london"
+                }
+            }
+        }
+  mappings:
+    - attributeName: user.role
+      jsonPath: $.users['##1##'].role
+      keys:
+        - attributeName: user.identity
+    - attributeName: user.location
+      jsonPath: $.users['##1##'].location
+      keys:
+        - attributeName: user.identity
+    - attributeName: resource.location
+      jsonPath: $.resources['##1##'].location
+      keys:
+        - attributeName: resource.identity

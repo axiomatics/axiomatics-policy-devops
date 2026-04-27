@@ -22,12 +22,37 @@ public class AdmExtension {
     String host;
     String domainName
 
-    String tokenUri = "/auth/realms/asm/protocol/openid-connect/token";
+    String realm = "asm" //asm or hub
+    String tokenUri = "/auth/realms/"+realm+"/protocol/openid-connect/token";
     String apiUrlPushStandaloneTemplate = "/api/namespaces/%s/names/%s"
     String apiUrlPushAsmTemplate = "/adm" + apiUrlPushStandaloneTemplate
     String apiUrlPullStandaloneTemplate = apiUrlPushStandaloneTemplate + "/domain"
     String apiUrlPullAsmTemplate = "/adm" + apiUrlPullStandaloneTemplate
     String adsHttpPort = null;
+
+    void realm(String value) {
+        this.realm = value
+    }
+    void tokenUri(String value) {
+        this.tokenUri = value
+    }
+    void apiUrlPushStandaloneTemplate(String value) {
+        this.apiUrlPushStandaloneTemplate = value
+    }
+    void apiUrlPushAsmTemplate(String value) {
+        this.apiUrlPushAsmTemplate = value
+    }
+    void apiUrlPullStandaloneTemplate(String value) {
+        this.apiUrlPullStandaloneTemplate = value
+    }
+    void apiUrlPullAsmTemplate(String value) {
+        this.apiUrlPullAsmTemplate = value
+    }
+    void adsHttpPort(String value) {
+        this.adsHttpPort = value
+    }
+
+
 
     @Nested
     BasicCredentials basicCredentials;

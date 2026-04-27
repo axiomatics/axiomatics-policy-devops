@@ -1,6 +1,7 @@
 import extensions.AlfaExtension
 import org.gradle.api.GradleException
 import org.gradle.api.Plugin
+import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
@@ -121,6 +122,7 @@ class AlfaPlugin implements Plugin<Project> {
 
             project.extensions.distributions.main {
                 contents {
+                    //this is ADS v1 distribution
                     into ('lib')    { from  project.configurations.adsRuntimeV1  }
                     into ('domain') { from  project.buildAuthzDomain,
                             alfa.licenseFile,
@@ -152,6 +154,16 @@ class AlfaPlugin implements Plugin<Project> {
                 it.dependsOn project.tasks.named("compileAlfa")
                 it.environment.put("XACML_XML_DIR_BY_GRADLE_TASK", xacmlOutputDir.getAbsolutePath())
             }
+
+            project.tasks.register("stageDeployment", DefaultTask.class) {
+                group "axiomatics"
+                doFirst {
+                    def file = project.tasks.installDeploymentDist.outputs.getFiles().getFiles().first()
+                    println "Your ADS deployment has been staged to $file"
+                }
+            }
+            project.tasks.stageDeployment.dependsOn project.tasks.installDeploymentDist
+
 
             project.logger.info("Project after evaluate ends")
         } //after evaluate

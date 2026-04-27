@@ -57,6 +57,8 @@ class AlfaExtension {
         String admId = lAdm.environment
         String specificGroup = "axiomatics-adm-${lAdm.environment.toLowerCase()}"
         String pullFrom ="pullFrom"
+        String pullAttributeConnectors = "pullAttributeConnectorsFrom"
+        String pullAttributeConnectorsFrom = pullAttributeConnectors+admId
         String promoteFrom = "promoteFrom"
         String pullFromAdm = pullFrom + admId
         String pushToAdm = "pushTo" + admId
@@ -65,6 +67,12 @@ class AlfaExtension {
         String waitToStartAdsForAdm = "waitToStartAds" + admId
         String testAdm = "test" + admId
         String stopAdsForAdm = "stopAdsFor" + admId
+
+        project.tasks.register(pullAttributeConnectorsFrom, PullAllConnectorsTask.class) {
+            group "other" //TODO: FEATURE PREVIEW
+            adm = lAdm // contains configuration to create hub client, see ADM extension.
+            projectDir = project.file(".")
+        }
 
         project.tasks.register(pullFromAdm, AdmPullTask.class) {
             group specificGroup
@@ -85,7 +93,8 @@ class AlfaExtension {
             adm = lAdm
             config = lAlfa
             admHash = lAdm.hashCode()
-            classpath = project.configurations.adsRuntimeV1
+            classpath = project.configurations.adsRuntimeV2
+            pipClasspath = project.configurations.pip
 
         }
 
