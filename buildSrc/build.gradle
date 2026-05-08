@@ -22,6 +22,13 @@ plugins {
         }
     }
 repositories {
+     def localTest = System.getenv("BUILD_LOCAL_MAVEN")
+     if (localTest) {
+       println "Local test enabled: ${localTest}"
+       maven {
+           url uri(localTest)
+       }
+     }
      def offlineLib = rootProject.projectDir.toPath().resolve("../lib").toFile()
      if (offlineLib.exists()) {
           logger.debug("Running in offline mode using local repository at ${offlineLib} (3)")
@@ -45,13 +52,7 @@ repositories {
             }
         }
         mavenCentral()
-        def localTest = System.getenv("BUILD_LOCAL_MAVEN")
-        if (localTest) {
-         println "Local test enabled: ${localTest}"
-         maven {
-           url uri(localTest)
-         }
-        }
+
 
      } //!offline
 }
@@ -61,9 +62,9 @@ dependencies {
     implementation(group: 'info.picocli', name: 'picocli', version: '4.7.1')
     implementation(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.13.0')
     implementation "com.palantir.gradle.docker:gradle-docker:0.37.0"
-    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.2"
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.3"
     implementation 'org.apache.httpcomponents:httpclient:4.5.14'
     implementation 'org.ajoberstar.grgit:grgit-core:5.2.2'
-    implementation "com.axiomatics.alfa.test:authhub-apd-integration:26.1.2"
-    implementation "com.axiomatics.alfa.test:authhub-client:26.1.2"
+    implementation "com.axiomatics.alfa.test:authhub-apd-integration:26.1.3"
+    implementation "com.axiomatics.alfa.test:authhub-client:26.1.3"
 }
