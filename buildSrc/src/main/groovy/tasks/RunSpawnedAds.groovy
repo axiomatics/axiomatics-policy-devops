@@ -88,7 +88,7 @@ class RunSpawnedAds extends DefaultTask {
         logger.info("Config file is ${configFileAsString}")
         def configContent = getApplicationYaml()
         logger.info("Config content: ${configContent}")
-        configFile << configContent
+        configFile.write(configContent)
 
         cmds << "--spring.config.additional-location=file:" + configFileAsString
         cmds << "--server.port=" + adm.adsHttpPort

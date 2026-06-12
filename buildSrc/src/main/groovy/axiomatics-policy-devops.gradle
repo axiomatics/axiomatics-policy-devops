@@ -66,14 +66,14 @@ dependencies {
     testRuntimeOnly("org.glassfish.jaxb:jaxb-runtime:2.4.0-b180830.0438")
     testRuntimeOnly("javax.xml.bind:jaxb-api:2.4.0-b180830.0359")
 
-    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.4"
+    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.5"
 
-    testImplementation(platform("org.junit:junit-bom:5.14.3"))
+    testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation('org.junit.jupiter:junit-jupiter')
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'ch.qos.logback:logback-classic:1.5.32'
+    testRuntimeOnly 'ch.qos.logback:logback-classic:1.5.34'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '3.0'
-    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.4"
+    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.5"
 
     domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.13.0')
     domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.13.0')
@@ -81,15 +81,15 @@ dependencies {
     adsCompile "com.axiomatics.access-decision-service:ads-service:2.2.3"
 
     adsRuntimeV1 "com.axiomatics.access-decision-service:access-decision-service:1.17.1"
-    adsRuntimeV2 "com.axiomatics:access-decision-service:26.1.1"
+    adsRuntimeV2 "com.axiomatics:access-decision-service:26.1.4"
 
-    pipAds1 "com.axiomatics.attribute-connectors.http:http-attribute-connector:5.5.1@jar"
+    pipAds1 "com.axiomatics.attribute-connectors.http:http-attribute-connector:5.5.2@jar"
     pipAds1 "com.axiomatics.attribute-connectors.parser:parser-attribute-connectors:1.1.1@jar"
     pipAds1 "com.axiomatics.attribute-connectors.sql:sql-attribute-connector:6.4.1@jar"
     pipAds1 "com.axiomatics.attribute-connectors.ldap:ldap-attribute-connector:6.4.1@jar"
     pipAds1 "com.axiomatics.attribute-connectors.table:table-attribute-connector:7.2.1@jar"
 
-    authHubClient "com.axiomatics.alfa.test:authhub-apd-integration:26.1.4"
+    authHubClient "com.axiomatics.alfa.test:authhub-apd-integration:26.1.5"
     alfac "com.axiomatics.alfa:alfac:1.5.2"
 }
 java {
@@ -276,20 +276,24 @@ rootProject.plugins.apply(AlfaPlugin)
 
 distributions {
     deployment {
-        distributionBaseName  = 'deployment'
+        distributionBaseName = 'deployment'
         contents {
-            from project.configurations.adsRuntimeV2
-            from project.tasks.buildAuthzDomain.outputs
-            from project.file(project.extensions.alfa.deploymentDescriptor)
-            from project.file(project.extensions.alfa.licenseFile)
-            from project.file("Dockerfile")
-            into ('lib') {
-                from project.configurations.pip
-                from project.jar
-            }
-            into('.') {
-                exclude("README.md")
-                from 'src/extra'
+            from project.tasks.createEnvFile
+
+            into('ads') {
+                from project.configurations.adsRuntimeV2
+                from project.tasks.buildAuthzDomain.outputs
+                from project.file(project.extensions.alfa.deploymentDescriptor)
+                from project.file(project.extensions.alfa.licenseFile)
+                from project.file("Dockerfile")
+                into('lib') {
+                    from project.configurations.pip
+                    from project.jar
+                }
+                into('.') {
+                    exclude("README.md")
+                    from 'src/extra'
+                }
             }
             duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         }
