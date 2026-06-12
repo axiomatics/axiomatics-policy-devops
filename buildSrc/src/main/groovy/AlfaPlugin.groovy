@@ -8,6 +8,10 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import tasks.AdmPushTask
 import tasks.AlfaCompilationTask
+import tasks.CreateEnvTask
+import tasks.dictionary.GenerateAlfaDictionary
+import tasks.dictionary.GenerateJavaDictionary
+import tasks.dictionary.GenerateYamlDictionary
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 
 import java.nio.file.Files
@@ -34,6 +38,31 @@ class AlfaPlugin implements Plugin<Project> {
         }
         project.tasks.register("compileAlfa", AlfaCompilationTask.class) {
             group "axiomatics"
+        }
+        project.tasks.register("generateAlfaDictionaryFromYaml", GenerateAlfaDictionary) {
+            group "axiomatics"
+            description "Generates an ALFA attribute dictionary (.alfa) from a YAML attribute definition file."
+            inputFile = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
+            outputFile = project.layout.projectDirectory.file('src/authorizationDomain/alfaSpecifications/attributes.alfa')
+        }
+        project.tasks.register("generateYamlDictionaryFromAlfa", GenerateYamlDictionary) {
+            group "axiomatics"
+            description "Generates a YAML attribute dictionary from an ALFA attribute specification file."
+            inputFile = project.layout.projectDirectory.file('src/authorizationDomain/alfaSpecifications/attributes.alfa')
+            outputFile = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
+        }
+        project.tasks.register("generateJavaDictionaryFromYaml", GenerateJavaDictionary) {
+            group "axiomatics"
+            description "Generates a Java attribute Dictionary class from a YAML attribute definition file."
+            inputFile  = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
+            outputFile = project.layout.projectDirectory.file('src/test/java/apd/Dictionary.java')
+        }
+        project.tasks.register("createEnvFile", CreateEnvTask) {
+            sources.from(
+                project.layout.projectDirectory.file('deployment.yaml'),
+                project.fileTree('src/authorizationDomain')
+            )
+            outputFile = project.layout.buildDirectory.file('.env.generated')
         }
         project.distributions {
             main {

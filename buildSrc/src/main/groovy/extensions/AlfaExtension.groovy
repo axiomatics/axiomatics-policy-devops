@@ -3,6 +3,7 @@ package extensions
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
 import tasks.*
+import tasks.authhub.*
 
 class AlfaExtension {
 
@@ -50,6 +51,8 @@ class AlfaExtension {
                 '}';
     }
 
+    static final String GROUP_FOR_AUTHHUB_TASKS = "other-preview"
+
     def addAdmTasksFor = { AdmExtension lAdm, AlfaExtension lAlfa ->
         {
         }
@@ -59,6 +62,11 @@ class AlfaExtension {
         String pullFrom ="pullFrom"
         String pullAttributeConnectors = "pullAttributeConnectorsFrom"
         String pullAttributeConnectorsFrom = pullAttributeConnectors+admId
+        String pushAttributeConnectorsTo = "pushAttributeConnectorsTo" + admId
+        String pushAlfaPoliciesTo = "pushAlfaPoliciesTo" + admId
+        String pullAlfaPoliciesFrom = "pullAlfaPoliciesFrom" + admId
+        String pushAttributesTo = "pushAttributesTo" + admId
+        String pullAttributesFrom = "pullAttributesFrom" + admId
         String promoteFrom = "promoteFrom"
         String pullFromAdm = pullFrom + admId
         String pushToAdm = "pushTo" + admId
@@ -69,8 +77,38 @@ class AlfaExtension {
         String stopAdsForAdm = "stopAdsFor" + admId
 
         project.tasks.register(pullAttributeConnectorsFrom, PullAllConnectorsTask.class) {
-            group "other" //TODO: FEATURE PREVIEW
-            adm = lAdm // contains configuration to create hub client, see ADM extension.
+            group GROUP_FOR_AUTHHUB_TASKS
+            adm = lAdm
+            projectDir = project.file(".")
+        }
+
+        project.tasks.register(pushAttributeConnectorsTo, PushAllConnectorsTask.class) {
+            group GROUP_FOR_AUTHHUB_TASKS
+            adm = lAdm
+            projectDir = project.file(".")
+        }
+
+        project.tasks.register(pushAlfaPoliciesTo, PushAlfaPoliciesTask.class) {
+            group GROUP_FOR_AUTHHUB_TASKS
+            adm = lAdm
+            projectDir = project.file(".")
+        }
+
+        project.tasks.register(pullAlfaPoliciesFrom, PullAlfaPoliciesTask.class) {
+            group GROUP_FOR_AUTHHUB_TASKS
+            adm = lAdm
+            projectDir = project.file(".")
+        }
+
+        project.tasks.register(pushAttributesTo, PushAllAttributesTask.class) {
+            group GROUP_FOR_AUTHHUB_TASKS
+            adm = lAdm
+            projectDir = project.file(".")
+        }
+
+        project.tasks.register(pullAttributesFrom, PullAllAttributesTask.class) {
+            group GROUP_FOR_AUTHHUB_TASKS
+            adm = lAdm
             projectDir = project.file(".")
         }
 
