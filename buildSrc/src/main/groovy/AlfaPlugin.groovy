@@ -39,21 +39,21 @@ class AlfaPlugin implements Plugin<Project> {
         project.tasks.register("compileAlfa", AlfaCompilationTask.class) {
             group "axiomatics"
         }
-        project.tasks.register("generateAlfaDictionaryFromYaml", GenerateAlfaDictionary) {
-            group "axiomatics"
-            description "Generates an ALFA attribute dictionary (.alfa) from a YAML attribute definition file."
+        project.tasks.register(AlfaExtension.GENERATE_ALFA_DICTIONARY_TASK, GenerateAlfaDictionary) {
+            group "axiomatics-dictionary"
+            description "Generates the ALFA attribute dictionary (.alfa) from the YAML attribute definition file."
             inputFile = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
             outputFile = project.layout.projectDirectory.file('src/authorizationDomain/alfaSpecifications/attributes.alfa')
         }
         project.tasks.register("generateYamlDictionaryFromAlfa", GenerateYamlDictionary) {
-            group "axiomatics"
-            description "Generates a YAML attribute dictionary from an ALFA attribute specification file."
+            group "axiomatics-dictionary"
+            description "Generates the YAML attribute dictionary from the ALFA attribute specification file."
             inputFile = project.layout.projectDirectory.file('src/authorizationDomain/alfaSpecifications/attributes.alfa')
             outputFile = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
         }
-        project.tasks.register("generateJavaDictionaryFromYaml", GenerateJavaDictionary) {
-            group "axiomatics"
-            description "Generates a Java attribute Dictionary class from a YAML attribute definition file."
+        project.tasks.register(AlfaExtension.GENERATE_JAVA_DICTIONARY_TASK, GenerateJavaDictionary) {
+            group "axiomatics-dictionary"
+            description "Generates the Java attribute Dictionary class from the YAML attribute definition file."
             inputFile  = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
             outputFile = project.layout.projectDirectory.file('src/test/java/apd/Dictionary.java')
         }
@@ -113,6 +113,7 @@ class AlfaPlugin implements Plugin<Project> {
                 }
                 useJUnitPlatform()
                 outputs.upToDateWhen {false}
+                environment "ALFA_EXTRA_ATTRIBUTE_ID_CHECK" , "${project.extensions.alfa.extraAttributeIdCheck}"
                 environment "ALFA_TEST_REMOTE_MAIN_POLICY" , "${project.extensions.alfa.mainpolicy}"
                 if (project.extensions.alfa.withVisualTrace != null) {
                     project.logger.info("Setting ALFA_WITH_VISUAL_TRACE to ${project.extensions.alfa.withVisualTrace}" )

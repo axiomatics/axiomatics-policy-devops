@@ -5,12 +5,13 @@ import com.axiomatics.apd.authhub.client.ProjectIdByName
 import com.axiomatics.apd.authhub.integration.AttributesPullAll
 import com.axiomatics.apd.authhub.services.DictionaryService
 import extensions.AdmExtension
+import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
-class PullAllAttributesTask extends DefaultTask {
+class PullAllAttributesTask extends DefaultTask implements GitGuarded {
 
     @Internal
     AdmExtension adm
@@ -23,6 +24,12 @@ class PullAllAttributesTask extends DefaultTask {
 
     PullAllAttributesTask() {
         relativePath.convention("src/authorizationDomain/attributes.yaml")
+    }
+
+    @Internal
+    @Override
+    File getGuardedOutputPath() {
+        projectDir.toPath().resolve(relativePath.get()).toFile()
     }
 
     @TaskAction
@@ -39,9 +46,13 @@ class PullAllAttributesTask extends DefaultTask {
 
         logger.lifecycle("Pulling attributes from AuthHub at ${adm.host} to ${projectDir}")
         def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        def projectId = new ProjectIdByName(adm.alfa.namespace, client)
-        def service = new DictionaryService(client, projectId)
-        new AttributesPullAll(service).execute(outputFile.toPath())
-        logger.lifecycle("Pulled attributes to ${outputFile}")
+        try {
+            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
+            def service = new DictionaryService(client, projectId)
+            def summary = new AttributesPullAll(service).execute(outputFile.toPath())
+            logger.lifecycle(summary.getMessage())
+        } finally {
+            client.close()
+        }
     }
 }
