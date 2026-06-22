@@ -11,10 +11,12 @@ import org.gradle.internal.impldep.org.apache.http.NameValuePair
 import org.gradle.internal.impldep.org.apache.http.client.entity.UrlEncodedFormEntity
 import org.gradle.internal.impldep.org.apache.http.client.methods.HttpPost
 import org.gradle.internal.impldep.org.apache.http.impl.client.CloseableHttpClient
+import org.gradle.internal.impldep.org.apache.http.impl.client.HttpClients
 import org.gradle.internal.impldep.org.apache.http.message.BasicNameValuePair
 
 import java.nio.charset.Charset
 
+//This descripes a remote API that hub can talk with such as adm and authhub. AuthHub is default
 public class AdmExtension {
 
 
@@ -22,13 +24,21 @@ public class AdmExtension {
     String host;
     String domainName
 
-    String realm = "asm" //asm or hub
+    String realm = "hub"//asm or hub
     String tokenUri = "/auth/realms/"+realm+"/protocol/openid-connect/token";
-    String apiUrlPushStandaloneTemplate = "/api/namespaces/%s/names/%s"
-    String apiUrlPushAsmTemplate = "/adm" + apiUrlPushStandaloneTemplate
+    String apiUrlPushStandaloneTemplate = "/adm/namespaces/%s/names/%s"
+    String apiUrlPushAsmTemplate = "/api" + apiUrlPushStandaloneTemplate
     String apiUrlPullStandaloneTemplate = apiUrlPushStandaloneTemplate + "/domain"
-    String apiUrlPullAsmTemplate = "/adm" + apiUrlPullStandaloneTemplate
+    String apiUrlPullAsmTemplate = "/api" + apiUrlPullStandaloneTemplate
     String adsHttpPort = null;
+    String repoType = "hub" //asm or hub etc
+
+    String getSecondPathElement() {
+        this.repoType.equals("hub")?"adm":"api"
+    }
+    String getFirstPathElement() {
+        this.repoType.equals("hub")?"api":"adm"
+    }
 
     void realm(String value) {
         this.realm = value
@@ -50,6 +60,9 @@ public class AdmExtension {
     }
     void adsHttpPort(String value) {
         this.adsHttpPort = value
+    }
+    void repoType(String value) {
+        this.repoType = value
     }
 
 
@@ -84,6 +97,7 @@ public class AdmExtension {
 
     void oidcCredentials(Closure c) {
         oidcCredentials = new AdmExtension.OidcCredentials();
+        oidcCredentials.realm(this.realm)
         project.configure(oidcCredentials, c);
     }
 
@@ -105,6 +119,8 @@ public class AdmExtension {
                 "environment='" + environment + '\'' +
                 ", host='" + host + '\'' +
                 ", domainName='" + domainName + '\'' +
+                ", realm='" + realm + '\'' +
+                ", repoType='" + repoType + '\'' +
                 ", basicCredentials=" + basicCredentials +
                 ", oidcCredentials=" + oidcCredentials +
                 ", envVariable=" + envVariable +
@@ -136,10 +152,14 @@ public class AdmExtension {
     public class OidcCredentials {
         String client_id;
         String client_secret;
-        String token_uri = "/auth/realms/asm/protocol/openid-connect/token";
+        String realm = "hub"
+        String token_uri = "/auth/realms/${realm}/protocol/openid-connect/token";
         Property<String> access_token;
         String privateToken = null;
 
+        void realm(String spec) {
+            realm = spec;
+        }
         void client_id(String spec) {
             client_id = spec
         }
@@ -167,26 +187,27 @@ public class AdmExtension {
                 project.logger.info("Preforming OIDC login to ADM at ${fullURL}")
                 HttpPost post = new HttpPost(fullURL);
                 post.setEntity(authBody);
-                CloseableHttpClient authClient;
+                CloseableHttpClient authClient = HttpClients.createDefault();
+                try {
+                    HttpResponse response = authClient.execute(post);
 
-                authClient = HttpClients.createDefault();
+                    //check auth response
+                    int responseCode = response.getStatusLine().getStatusCode();
+                    String responseText = EntityUtils.toString(response.getEntity());
+                    project.logger.info("Login call returned ${responseCode}")
+                    if (responseCode != 200) {
+                        throw new RuntimeException(
+                                "Failed to perform OpenId Connect authentication to ASM-ADM at " + fullURL + ". Response code: " + responseCode +
+                                        ". Response body '" + responseText + "'");
 
-                HttpResponse response = authClient.execute(post);
-
-                //check auth response
-                int responseCode = response.getStatusLine().getStatusCode();
-                String responseText = EntityUtils.toString(response.getEntity());
-                project.logger.info("Login call returned ${responseCode}")
-                if (responseCode != 200) {
-                    throw new RuntimeException(
-                            "Failed to perform OpenId Connect authentication to ASM-ADM at " + fullURL + ". Response code: " + responseCode +
-                                    ". Response body '" + responseText + "'");
-
+                    }
+                    Map o = (Map) new JsonSlurper().parseText(responseText);
+                    privateToken = (String) o.get("access_token");
+                    project.logger.info("Successfully extracted token")
+                    return privateToken;
+                } finally {
+                    authClient.close();
                 }
-                Map o = (Map) new JsonSlurper().parseText(responseText);
-                privateToken = (String) o.get("access_token");
-                project.logger.info("Successfully extracted token")
-                return privateToken;
             } catch (Exception e) {
                 throw new RuntimeException("Failed to login to ADM " + AdmExtension.this.name + " at URL:" + host, e);
             }
@@ -224,6 +245,8 @@ public class AdmExtension {
         if (process != that.process) return false
         if (project != that.project) return false
         if (tokenUri != that.tokenUri) return false
+        if (realm != that.realm) return false
+        if (repoType != that.repoType) return false
 
         return true
     }
@@ -244,6 +267,8 @@ public class AdmExtension {
         result = 31 * result + (project != null ? project.hashCode() : 0)
         result = 31 * result + (process != null ? process.hashCode() : 0)
         result = 31 * result + (alfa != null ? alfa.hashCode() : 0)
+        result = 31 * result + (realm != null ? realm.hashCode() : 0)
+        result = 31 * result + (repoType != null ? repoType.hashCode() : 0)
         return result
     }
 }

@@ -35,9 +35,13 @@ class PushAllAttributesTask extends DefaultTask {
         }
         logger.lifecycle("Pushing attributes from ${projectDir} to AuthHub at ${adm.host}")
         def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        def projectId = new ProjectIdByName(adm.alfa.namespace, client)
-        def service = new DictionaryService(client, projectId)
-        def results = new AttributesPushAll(service).execute(projectDir.toPath().resolve(relativePath.get()), continueOnHttp4xx.get())
-        results.forEach { fqn, result -> logger.lifecycle("  ${fqn}: ${result}") }
+        try {
+            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
+            def service = new DictionaryService(client, projectId)
+            def summary = new AttributesPushAll(service).execute(projectDir.toPath().resolve(relativePath.get()), continueOnHttp4xx.get())
+            logger.lifecycle(summary.getMessage())
+        } finally {
+            client.close()
+        }
     }
 }

@@ -1,5 +1,6 @@
 package tasks.dictionary
 
+import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
@@ -7,7 +8,7 @@ import org.gradle.api.tasks.*
 import org.yaml.snakeyaml.Yaml
 
 @CacheableTask
-class GenerateAlfaDictionary extends DefaultTask {
+class GenerateAlfaDictionary extends DefaultTask implements GitGuarded {
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -15,6 +16,10 @@ class GenerateAlfaDictionary extends DefaultTask {
 
     @OutputFile
     final RegularFileProperty outputFile = project.objects.fileProperty()
+
+    @Internal
+    @Override
+    File getGuardedOutputPath() { outputFile.get().asFile }
 
     private static final Map<String, String> CATEGORY_MAP = [
         'AccessSubject': 'subjectCat',

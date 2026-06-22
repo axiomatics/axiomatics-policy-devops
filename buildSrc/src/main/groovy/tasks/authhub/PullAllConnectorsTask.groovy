@@ -5,12 +5,13 @@ import com.axiomatics.apd.authhub.client.ProjectIdByName
 import com.axiomatics.apd.authhub.integration.AttributeConnectorPullAll
 import com.axiomatics.apd.authhub.services.AttributeConnectorService
 import extensions.AdmExtension
+import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
-class PullAllConnectorsTask extends DefaultTask {
+class PullAllConnectorsTask extends DefaultTask implements GitGuarded {
 
     @Internal
     AdmExtension adm
@@ -25,6 +26,12 @@ class PullAllConnectorsTask extends DefaultTask {
         relativePath.convention("src/authorizationDomain/attributeConnectors")
     }
 
+    @Internal
+    @Override
+    File getGuardedOutputPath() {
+        projectDir.toPath().resolve(relativePath.get()).toFile()
+    }
+
     @TaskAction
     void run() {
         if (adm.oidcCredentials == null) {
@@ -36,9 +43,14 @@ class PullAllConnectorsTask extends DefaultTask {
 
         logger.lifecycle("Pulling all attribute connectors from AuthHub at ${adm.host} to ${projectDir}")
         def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        def projectId = new ProjectIdByName(adm.alfa.namespace, client)
-        def service = new AttributeConnectorService(client, projectId)
-        new AttributeConnectorPullAll(service, projectDir.toPath(), relativePath.get()).execute()
+        try {
+            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
+            def service = new AttributeConnectorService(client, projectId)
+            def summary = new AttributeConnectorPullAll(service, projectDir.toPath(), relativePath.get()).execute()
+            logger.lifecycle(summary.getMessage())
+        } finally {
+            client.close()
+        }
     }
 
     void adm(Closure closure) {

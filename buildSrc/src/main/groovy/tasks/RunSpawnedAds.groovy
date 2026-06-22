@@ -109,7 +109,19 @@ class RunSpawnedAds extends DefaultTask {
         } else {
             template = adm.apiUrlPullAsmTemplate
         }
-        return adm.host + String.format(template, adm.alfa.namespace, adm.domainName)
+        String projectIdOrName;
+        logger.lifecycle("Repo is type AuthHub")
+        if (adm.repoType.equals("hub")) {
+
+                def client = new com.axiomatics.apd.authhub.client.AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
+                projectIdOrName = new com.axiomatics.apd.authhub.client.ProjectIdByName(adm.alfa.namespace, client).get()
+
+
+        } else {
+           projectIdOrName= adm.alfa.namespace
+        }
+
+        return adm.host + String.format(template,projectIdOrName, adm.domainName)
     }
 
     @Internal

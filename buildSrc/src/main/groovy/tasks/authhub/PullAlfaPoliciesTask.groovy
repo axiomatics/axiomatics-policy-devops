@@ -5,12 +5,13 @@ import com.axiomatics.apd.authhub.client.ProjectIdByName
 import com.axiomatics.apd.authhub.integration.AlfaPoliciesPullAll
 import com.axiomatics.apd.authhub.services.DomainManagerService
 import extensions.AdmExtension
+import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
-class PullAlfaPoliciesTask extends DefaultTask {
+class PullAlfaPoliciesTask extends DefaultTask implements GitGuarded {
 
     @Internal
     AdmExtension adm
@@ -25,6 +26,12 @@ class PullAlfaPoliciesTask extends DefaultTask {
         relativePath.convention("src/authorizationDomain/alfaSpecifications")
     }
 
+    @Internal
+    @Override
+    File getGuardedOutputPath() {
+        projectDir.toPath().resolve(relativePath.get()).toFile()
+    }
+
     @TaskAction
     void run() {
         if (adm.oidcCredentials == null) {
@@ -36,9 +43,13 @@ class PullAlfaPoliciesTask extends DefaultTask {
 
         logger.lifecycle("Pulling ALFA policies from AuthHub at ${adm.host} to ${projectDir}")
         def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        def projectId = new ProjectIdByName(adm.alfa.namespace, client)
-        def service = new DomainManagerService(client, projectId)
-        new AlfaPoliciesPullAll(service).execute(outputDir.toPath())
-        logger.lifecycle("Pulled ALFA policies to ${outputDir}")
+        try {
+            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
+            def service = new DomainManagerService(client, projectId)
+            def summary = new AlfaPoliciesPullAll(service).execute(outputDir.toPath())
+            logger.lifecycle(summary.getMessage())
+        } finally {
+            client.close()
+        }
     }
 }

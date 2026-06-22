@@ -1,5 +1,6 @@
 package tasks.dictionary
 
+import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.ajoberstar.grgit.Grgit
 import org.gradle.api.DefaultTask
@@ -10,7 +11,7 @@ import org.yaml.snakeyaml.Yaml
 import java.time.format.DateTimeFormatter
 
 @CacheableTask
-class GenerateJavaDictionary extends DefaultTask {
+class GenerateJavaDictionary extends DefaultTask implements GitGuarded {
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -18,6 +19,10 @@ class GenerateJavaDictionary extends DefaultTask {
 
     @OutputFile
     final RegularFileProperty outputFile = project.objects.fileProperty()
+
+    @Internal
+    @Override
+    File getGuardedOutputPath() { outputFile.get().asFile }
 
     @TaskAction
     void execute() {

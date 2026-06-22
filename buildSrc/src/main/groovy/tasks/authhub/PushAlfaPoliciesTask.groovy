@@ -31,9 +31,13 @@ class PushAlfaPoliciesTask extends DefaultTask {
         }
         logger.lifecycle("Pushing ALFA policies from ${projectDir} to AuthHub at ${adm.host}")
         def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        def projectId = new ProjectIdByName(adm.alfa.namespace, client)
-        def service = new DomainManagerService(client, projectId)
-        def policyPackageId = new AlfaPoliciesPushAll(service).execute(projectDir.toPath().resolve(relativePath.get()))
-        logger.lifecycle("Pushed ALFA policies. Policy package ID: ${policyPackageId}")
+        try {
+            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
+            def service = new DomainManagerService(client, projectId)
+            def summary = new AlfaPoliciesPushAll(service).execute(projectDir.toPath().resolve(relativePath.get()))
+            logger.lifecycle(summary.getMessage())
+        } finally {
+            client.close()
+        }
     }
 }
