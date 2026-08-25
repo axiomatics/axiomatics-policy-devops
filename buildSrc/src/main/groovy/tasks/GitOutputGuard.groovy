@@ -6,26 +6,25 @@ import org.gradle.api.Task
 
 class GitOutputGuard {
 
-    static void checkAll(Task callerTask, List<GitGuarded> tasks) {
+    static void checkAll(Task callerTask, File rootDir, boolean allowUnsafeRequested, Map<String, File> outputPathsByTaskName) {
         def grgit = null
         try {
-            grgit = Grgit.open(currentDir: callerTask.project.rootDir)
+            grgit = Grgit.open(currentDir: rootDir)
             def status = grgit.status()
             def allChanged = ([] + status.staged.modified + status.staged.added + status.staged.removed
                                  + status.unstaged.modified + status.unstaged.removed) as Set
 
             List<String> dirty = []
-            for (GitGuarded t : tasks) {
-                def rel = callerTask.project.rootDir.toPath()
-                        .relativize(t.guardedOutputPath.toPath())
+            outputPathsByTaskName.each { taskName, outputPath ->
+                def rel = rootDir.toPath()
+                        .relativize(outputPath.toPath())
                         .toString()
                         .replace('\\', '/')
                 if (allChanged.contains(rel) || allChanged.any { it.startsWith(rel + '/') })
                     dirty << rel
             }
             if (!dirty.empty) {
-                boolean allowUnsafe = System.getProperty('apd.allowUnsafe') == 'true' ||
-                        callerTask.project.findProperty('apd.allowUnsafe') == 'true'
+                boolean allowUnsafe = System.getProperty('apd.allowUnsafe') == 'true' || allowUnsafeRequested
                 if (allowUnsafe) {
                     dirty.each {
                         callerTask.logger.warn(
@@ -49,11 +48,11 @@ class GitOutputGuard {
         }
     }
 
-    static void check(Task task, File outputPath) {
+    static void check(Task task, File rootDir, boolean allowUnsafeRequested, File outputPath) {
         def grgit = null
         try {
-            grgit = Grgit.open(currentDir: task.project.rootDir)
-            def rel = task.project.rootDir.toPath()
+            grgit = Grgit.open(currentDir: rootDir)
+            def rel = rootDir.toPath()
                     .relativize(outputPath.toPath())
                     .toString()
                     .replace('\\', '/')
@@ -66,8 +65,7 @@ class GitOutputGuard {
             boolean hasChanges = allChanged.contains(rel) || allChanged.any { it.startsWith(rel + '/') }
 
             if (hasChanges) {
-                if (System.getProperty('apd.allowUnsafe') == 'true' ||
-                        task.project.findProperty('apd.allowUnsafe') == 'true') {
+                if (System.getProperty('apd.allowUnsafe') == 'true' || allowUnsafeRequested) {
                     task.logger.warn(
                             "WARNING: Task ${task.name}: ${rel} has uncommitted changes but " +
                             "apd.allowUnsafe=true - proceeding anyway.")

@@ -1,3 +1,16 @@
 plugins {
     id "org.gradle.toolchains.foojay-resolver-convention"
 }
+
+// JGit (used by Grgit in git-guard tasks) adds "**/.gitignore" to Ant's global default-excludes list the
+// first time it runs. On a reused Gradle daemon, a later build's file-tree scan (e.g. compileGroovyPlugins)
+// then sees that list has "changed" since the daemon started and fails hard. Pre-declaring both the
+// "**/"-prefixed form (what JGit actually adds) and the bare form here — before anything else can —
+// makes JGit's later addition an exact-string-match no-op, so there's nothing left to detect as a change.
+//
+// The ROOT settings.gradle (one level up) declares these same excludes too, and is what actually matters:
+// it evaluates before buildSrc is built at all, so it wins the race against buildSrc's own internal
+// bootstrap tasks under `--rerun-tasks` (see its comment for details). This copy is kept as a harmless,
+// idempotent defense-in-depth for the (unlikely) case buildSrc is ever built in isolation.
+org.apache.tools.ant.DirectoryScanner.addDefaultExclude("**/.gitignore")
+org.apache.tools.ant.DirectoryScanner.addDefaultExclude(".gitignore")

@@ -4,23 +4,26 @@ import extensions.AdmExtension
 import extensions.AlfaExtension
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.FileCollection
-import org.gradle.api.tasks.Input
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.jvm.Jvm
 
-class RunSpawnedAds extends DefaultTask {
+import javax.inject.Inject
 
+// Starts a live local ADS process for interactive dev/test use — there is no sensible cached
+// artifact here (the "output" is a running server), so this task is never up-to-date by design.
+abstract class RunSpawnedAds extends DefaultTask {
 
-    @Input
+    @Inject
+    abstract ProjectLayout getLayout()
+
+    @Internal
     AlfaExtension config
 
-    @Input
+    @Internal
     AdmExtension adm
-
-    @Input
-    int admHash
 
     @InputFiles
     FileCollection classpath
@@ -28,6 +31,9 @@ class RunSpawnedAds extends DefaultTask {
     @InputFiles
     FileCollection pipClasspath
 
+    RunSpawnedAds() {
+        outputs.upToDateWhen { false }
+    }
 
     @TaskAction
     void run() {
@@ -70,7 +76,7 @@ class RunSpawnedAds extends DefaultTask {
         }
 
         // Stage pip jars into lib/ next to the working dir so PropertiesLauncher picks them up
-        def workDir = adm.project.buildDir.toPath().resolve(this.name)
+        def workDir = layout.buildDirectory.dir(this.name).get().asFile.toPath()
         def libDir = workDir.resolve("lib")
         libDir.toFile().mkdirs()
         if (pipClasspath != null && !pipClasspath.isEmpty()) {
@@ -130,7 +136,7 @@ class RunSpawnedAds extends DefaultTask {
         logger.lifecycle("Location of domain is ${url}")
         def tlsBundleName = hasTlsConfig() ? "admBundle" : null
         return """
-license: file:${adm.project.getProjectDir()}/${config.licenseFile}
+license: file:${layout.projectDirectory.asFile}/${config.licenseFile}
 
 domain:
   path: ${url}

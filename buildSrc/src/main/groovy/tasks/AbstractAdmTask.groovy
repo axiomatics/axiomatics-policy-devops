@@ -11,20 +11,23 @@ import org.apache.http.impl.client.HttpClients
 import org.apache.http.message.BasicNameValuePair
 import org.apache.http.util.EntityUtils
 import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
 import java.nio.charset.Charset
 import java.util.function.Supplier
 
+// Pushes/pulls the authorization domain to/from a remote ADM (AuthHub/ASM) system. The remote's
+// state can change independently of anything Gradle can observe locally, so these tasks are never
+// up-to-date by design — always rerun.
 abstract class AbstractAdmTask extends DefaultTask {
 
     @Internal
     AdmExtension adm
 
-    @Input
-    Object admHash
+    AbstractAdmTask() {
+        outputs.upToDateWhen { false }
+    }
 
     @TaskAction
     void run() {

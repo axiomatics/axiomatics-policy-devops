@@ -3,17 +3,21 @@ package tasks
 import extensions.AdmExtension
 import extensions.AlfaExtension
 import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
+// Stops a live ADS process (started by RunSpawnedAds) — no sensible cached artifact here, so this
+// task is never up-to-date by design.
 class StopAdmAdsTask extends  DefaultTask {
 
-    @Input
+    @Internal
     AdmExtension adm;
-    @Input
+    @Internal
     AlfaExtension config
-    @Input
-    int admHash
+
+    StopAdmAdsTask() {
+        outputs.upToDateWhen { false }
+    }
 
     @TaskAction
     stop() {

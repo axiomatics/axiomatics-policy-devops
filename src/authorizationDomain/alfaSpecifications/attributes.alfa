@@ -34,4 +34,23 @@ namespace resource {
         category = resourceCat
     }
 }
+namespace Attributes {
+    attribute currentDateTime {
+        id = "urn:oasis:names:tc:xacml:1.0:environment:current-dateTime"
+        category = environmentCat
+        type = dateTime
+    }
+
+    attribute currentDate {
+        id = "urn:oasis:names:tc:xacml:1.0:environment:current-date"
+        category = environmentCat
+        type = date
+    }
+
+    attribute currentTime {
+        id = "urn:oasis:names:tc:xacml:1.0:environment:current-time"
+        category = environmentCat
+        type = time
+    }
+}
 

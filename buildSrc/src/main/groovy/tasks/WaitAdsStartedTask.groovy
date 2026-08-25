@@ -2,22 +2,24 @@ package tasks
 
 import extensions.AdmExtension
 import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 
 import java.util.concurrent.atomic.AtomicBoolean
 
+// Waits for a live ADS process (started by RunSpawnedAds) to report readiness — no sensible cached
+// artifact here, so this task is never up-to-date by design.
 class WaitAdsStartedTask extends DefaultTask {
 
     @Internal
     String START_CONDITION_REGEXP = '^.*Started AdsApplication.*$'
 
-    @Input
+    @Internal
     AdmExtension adm
 
-    @Input
-    int admHash
+    WaitAdsStartedTask() {
+        outputs.upToDateWhen { false }
+    }
 
     @TaskAction
     public execute() {

@@ -66,22 +66,22 @@ dependencies {
     testRuntimeOnly("org.glassfish.jaxb:jaxb-runtime:2.4.0-b180830.0438")
     testRuntimeOnly("javax.xml.bind:jaxb-api:2.4.0-b180830.0359")
 
-    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.6"
+    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.7"
 
     testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation('org.junit.jupiter:junit-jupiter')
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'ch.qos.logback:logback-classic:1.5.34'
+    testRuntimeOnly 'ch.qos.logback:logback-classic:1.5.38'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '3.0'
-    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.6"
+    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.7"
 
-    domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.13.0')
-    domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.13.0')
+    domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.14.0')
+    domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.14.0')
 
     adsCompile "com.axiomatics.access-decision-service:ads-service:2.2.3"
 
     adsRuntimeV1 "com.axiomatics.access-decision-service:access-decision-service:1.17.1"
-    adsRuntimeV2 "com.axiomatics:access-decision-service:26.1.4"
+    adsRuntimeV2 "com.axiomatics:access-decision-service:26.1.7"
 
     pipAds1 "com.axiomatics.attribute-connectors.http:http-attribute-connector:5.5.2@jar"
     pipAds1 "com.axiomatics.attribute-connectors.parser:parser-attribute-connectors:1.1.1@jar"
@@ -89,7 +89,7 @@ dependencies {
     pipAds1 "com.axiomatics.attribute-connectors.ldap:ldap-attribute-connector:6.4.1@jar"
     pipAds1 "com.axiomatics.attribute-connectors.table:table-attribute-connector:7.2.1@jar"
 
-    authHubClient "com.axiomatics.alfa.test:authhub-apd-integration:26.1.6"
+    authHubClient "com.axiomatics.alfa.test:authhub-apd-integration:26.1.7"
     alfac "com.axiomatics.alfa:alfac:1.5.2"
 }
 java {
@@ -200,65 +200,6 @@ task stagePipsInLibFolderForAds2(type: Copy) {
     from configurations.pip
     from { tasks.jar.outputs.files }
     into "${buildDir}/alfa/domain/ads/lib"
-}
-
-task readGitCommitInfo {
-    def final  String  UNKNOWN = "unknown"
-    def final File versionFile =  project.buildDir.toPath().resolve("repositoryAndVersion").toFile()
-    def commit = null
-    def grgit = null
-    def repoAndCommit
-
-    try {
-        grgit = org.ajoberstar.grgit.Grgit.open(currentDir: project.rootDir)
-        commit = grgit.head()
-        def name = grgit.repository.rootDir.getParentFile().getName()
-        repoAndCommit = name + "-" + commit.abbreviatedId
-        logger.info("Git repo successfully loaded")
-    } catch (IllegalStateException e) {
-        repoAndCommit = "na-"+System.currentTimeMillis()
-        logger.debug("Cannot open git. Not in a git project?",e)
-    }
-    outputs.upToDateWhen {
-        def upToDateValue = repoAndCommit
-        def oldValue = versionFile.canRead() ? versionFile.getText("utf-8") : null
-        boolean upToDate =  upToDateValue.equals(oldValue)
-
-        logger.info("New : ${upToDateValue}, Old: ${oldValue}, readGitCommitInfo upToDate  ${upToDate}")
-        return upToDate
-
-    }
-
-    doLast {
-        logger.info("Executing readGitCommitInfo")
-        try {
-            if (grgit != null) {
-
-                def author = commit.author.name + " <" + commit.author.email + ">"
-                def message = commit.shortMessage
-                if (project.extensions.alfa.domainIdentity == null) {
-                    logger.info("setting id to " + repoAndCommit + " in alfa extension")
-                    project.extensions.alfa.domainIdentity = repoAndCommit
-                }
-                project.extensions.alfa.metadata.put("Author", author)
-                project.extensions.alfa.metadata.put("Commit-Message", message)
-                versionFile.write(repoAndCommit, "UTF-8")
-                logger.info("Wrote build/info file and populated extension metadatamap with id "+ repoAndCommit)
-            } else  {
-                logger.info("No git present, wrote id UNKNOWN to build/version and set in extension")
-                versionFile.write(UNKNOWN, "UTF-8")
-                if (project.extensions.alfa.domainIdentity == null) {
-                    project.extensions.alfa.domainIdentity =UNKNOWN
-                }
-            }
-        } catch (IllegalStateException e) {
-            versionFile.write(UNKNOWN, "UTF-8")
-            if (project.extensions.alfa.domainIdentity == null) {
-                project.extensions.alfa.domainIdentity = UNKNOWN
-            }
-            logger.info("Cannot read commit, exception occured. Wrote UNKNOWN to build/version file and set in extension",e)
-        }
-    }
 }
 
 stageAdsFiles.dependsOn stageDeploymentDescriptor

@@ -3,6 +3,8 @@ import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
+import org.gradle.api.tasks.ClasspathNormalizer
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
@@ -30,11 +32,21 @@ class AlfaPlugin implements Plugin<Project> {
                     "If you have not received the credentials, contact your Axiomatics support")
         }
         project.logger.info("Access key id found ${accessKey}")
+        boolean allowUnsafeRequested = project.findProperty('apd.allowUnsafe') == 'true'
         project.extensions.create('alfa', AlfaExtension, project)
         project.plugins.apply('distribution')
         project.getPluginManager().apply("com.palantir.docker")
         project.tasks.register("buildAuthzDomain", BuildAuthZDomainTask.class) {
             group "axiomatics"
+            domainIdentity = project.extensions.alfa.domainIdentity
+            gitCommitAuthor = project.extensions.alfa.gitCommitAuthor
+            gitCommitMessage = project.extensions.alfa.gitCommitMessage
+            extraMetadata.set(project.provider { project.extensions.alfa.metadata })
+        }
+        project.tasks.register("readGitCommitInfo", ReadGitCommitInfoTask.class) {
+            domainIdentity = project.extensions.alfa.domainIdentity
+            repositoryAndVersionFile = project.file("${project.buildDir}/repositoryAndVersion")
+            versionFile = project.file("${project.buildDir}/version")
         }
         project.tasks.register("compileAlfa", AlfaCompilationTask.class) {
             group "axiomatics"
@@ -42,27 +54,32 @@ class AlfaPlugin implements Plugin<Project> {
         project.tasks.register(AlfaExtension.GENERATE_ALFA_DICTIONARY_TASK, GenerateAlfaDictionary) {
             group "axiomatics-dictionary"
             description "Generates the ALFA attribute dictionary (.alfa) from the YAML attribute definition file."
-            inputFile = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
-            outputFile = project.layout.projectDirectory.file('src/authorizationDomain/alfaSpecifications/attributes.alfa')
+            inputFile = project.extensions.alfa.attributesYamlFile
+            outputFile = project.extensions.alfa.attributesAlfaFile
+            allowUnsafe = allowUnsafeRequested
         }
         project.tasks.register("generateYamlDictionaryFromAlfa", GenerateYamlDictionary) {
             group "axiomatics-dictionary"
             description "Generates the YAML attribute dictionary from the ALFA attribute specification file."
-            inputFile = project.layout.projectDirectory.file('src/authorizationDomain/alfaSpecifications/attributes.alfa')
-            outputFile = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
+            inputFile = project.extensions.alfa.attributesAlfaFile
+            outputFile = project.extensions.alfa.attributesYamlFile
+            allowUnsafe = allowUnsafeRequested
         }
         project.tasks.register(AlfaExtension.GENERATE_JAVA_DICTIONARY_TASK, GenerateJavaDictionary) {
             group "axiomatics-dictionary"
             description "Generates the Java attribute Dictionary class from the YAML attribute definition file."
-            inputFile  = project.layout.projectDirectory.file('src/authorizationDomain/attributes.yaml')
-            outputFile = project.layout.projectDirectory.file('src/test/java/apd/Dictionary.java')
+            inputFile  = project.extensions.alfa.attributesYamlFile
+            outputFile = project.extensions.alfa.dictionaryJavaFile
+            allowUnsafe = allowUnsafeRequested
+            commitRef = project.extensions.alfa.commitRef
+            commitDate = project.extensions.alfa.commitDate
         }
         project.tasks.register("createEnvFile", CreateEnvTask) {
             sources.from(
                 project.layout.projectDirectory.file('deployment.yaml'),
-                project.fileTree('src/authorizationDomain')
+                project.fileTree('src/authorizationDomain') { exclude '**/*.alfa' },
+                project.fileTree('src/extra')
             )
-            outputFile = project.layout.buildDirectory.file('.env.generated')
         }
         project.distributions {
             main {
@@ -134,20 +151,29 @@ class AlfaPlugin implements Plugin<Project> {
                 }
             }
             project.tasks.compileAlfa {
+                // Resolved once here, at configuration time, into a plain value — doFirst runs at
+                // execution time, where touching the live `project`/`Configuration` object (instead
+                // of this already-resolved, serializable Set<File>) would be a config-cache violation.
+                Set<File> policyFiles = project.configurations.policy.files
                 doFirst {
-                    logger.info("Policy dependnecies on configuration 'policy' is ${project.configurations.policy}")
+                    if (!policyFiles.isEmpty()) {
+                        logger.info("Policy dependencies on configuration 'policy': ${policyFiles}")
+                    }
                 }
-                inputs.files project.configurations.policy
-                inputs.files project.fileTree("src/authorizationDomain/alfaSpecifications")
-                outputs.dir project.file("build/alfa/domain/xacmlSpecifications")
+                inputs.files(project.configurations.policy)
+                        .withNormalizer(ClasspathNormalizer)
+                        .withPropertyName("policy")
+                inputs.files(project.fileTree("src/authorizationDomain/alfaSpecifications"))
+                        .withPathSensitivity(PathSensitivity.RELATIVE)
+                        .withPropertyName("alfaSpecifications")
+                outputs.dir(project.file("build/alfa/domain/xacmlSpecifications"))
+                        .withPropertyName("xacmlSpecifications")
             }
             project.tasks.buildAuthzDomain {
                 xmlPolicies = project.fileTree("${project.buildDir}/alfa/domain/xacmlSpecifications")
                 srcDir = project.file(project.extensions.alfa.srcDir)
                 mainPolicy  project.extensions.alfa.mainpolicy
                 domainFile = project.file("${project.buildDir}/alfa/domain/ads/domain.yaml")
-                versionFile = project.buildDir.toPath().resolve("repositoryAndVersion").toFile()
-
             }
 
             project.extensions.distributions.main {
@@ -168,14 +194,12 @@ class AlfaPlugin implements Plugin<Project> {
 
             project.tasks.stageAdsFiles.dependsOn project.tasks.buildAuthzDomain
             project.tasks.buildAuthzDomain.dependsOn project.tasks.compileAlfa
+            project.tasks.buildAuthzDomain.dependsOn project.tasks.readGitCommitInfo
             project.tasks.dockerPrepare.dependsOn project.tasks.installDist
             project.tasks.buildAdsDockerImage.dependsOn project.tasks.docker
-            project.tasks.buildAuthzDomain.dependsOn project.tasks.readGitCommitInfo
 
             project.tasks.withType(AdmPushTask.class) {
-              if (domainFile == null) {
-                  domainFile project.tasks.buildAuthzDomain.domainFile
-              }
+                domainFile.convention(project.tasks.buildAuthzDomain.domainFile)
             }
 
             project.tasks.withType(Test) {
