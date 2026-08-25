@@ -2,12 +2,15 @@ package extensions
 
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.file.RegularFile
+import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.testing.Test
 import tasks.*
 import tasks.authhub.*
 import tasks.dictionary.*
 
-class AlfaExtension {
+abstract class AlfaExtension {
 
     String namespace
     String mainpolicy = null
@@ -18,14 +21,24 @@ class AlfaExtension {
     boolean extraAttributeIdCheck = true
     Project project
     Map<String,String> metadata = new HashMap<>()
-    String domainIdentity
     Boolean withVisualTrace = true
 
+    // Identity string for the generated authorization domain. Defaults to a git-derived
+    // "repo-commit" value (see GitInfoValueSource) but stays overridable — an explicit
+    // `alfa { domainIdentity = 'x' }` always wins over the convention.
+    abstract Property<String> getDomainIdentity()
+
     DomainRepositories repositories = new DomainRepositories();
+
+    private Provider<Map<String, String>> gitInfo
 
     AlfaExtension(Project project) {
         this.project = project;
         namespace = this.project.getRootProject().getName().replaceAll("-", "_").replaceAll("\\.", "_")
+        gitInfo = project.providers.of(GitInfoValueSource) {
+            it.parameters.rootDir.set(project.layout.projectDirectory)
+        }
+        domainIdentity.convention(gitInfo.map { it.repoAndCommit })
     }
 
     void repositories(Closure c) {
@@ -60,8 +73,40 @@ class AlfaExtension {
     static final String GENERATE_ALFA_DICTIONARY_TASK = "generateAlfaDictionaryFromYaml"
     static final String GENERATE_JAVA_DICTIONARY_TASK = "generateJavaDictionaryFromYaml"
 
+    Provider<RegularFile> getAttributesYamlFile() {
+        project.layout.projectDirectory.file(project.provider { "${srcDir}/attributes.yaml" })
+    }
+
+    Provider<RegularFile> getAttributesAlfaFile() {
+        project.layout.projectDirectory.file(project.provider { "${srcDir}/alfaSpecifications/attributes.alfa" })
+    }
+
+    Provider<RegularFile> getDictionaryJavaFile() {
+        project.layout.projectDirectory.file(project.provider {
+            File testJavaDir = project.sourceSets.test.java.srcDirs.first()
+            new File(testJavaDir, 'apd/Dictionary.java').path
+        })
+    }
+
+    Provider<String> getGitCommitAuthor() {
+        gitInfo.map { it.author }
+    }
+
+    Provider<String> getGitCommitMessage() {
+        gitInfo.map { it.message }
+    }
+
+    Provider<String> getCommitRef() {
+        gitInfo.map { it.commitRef }
+    }
+
+    Provider<String> getCommitDate() {
+        gitInfo.map { it.commitDate }
+    }
+
     def addAdmTasksFor = { AdmExtension lAdm, AlfaExtension lAlfa ->
         project.logger.info("Registring tasks for adm with environment ${lAdm.environment}")
+        boolean allowUnsafeRequested = project.findProperty('apd.allowUnsafe') == 'true'
         String admId = lAdm.environment
         String specificGroup = "axiomatics-${lAdm.repoType}-${lAdm.environment.toLowerCase()}"
         boolean isHub = lAdm.repoType == "hub"
@@ -90,6 +135,7 @@ class AlfaExtension {
                 description "Pulls all attribute connectors from AuthHub ${admId}."
                 adm = lAdm
                 projectDir = project.file(".")
+                allowUnsafe = allowUnsafeRequested
             }
 
             project.tasks.register(connectorPushTo, PushAllConnectorsTask.class) {
@@ -111,6 +157,7 @@ class AlfaExtension {
                 description "Pulls all ALFA policies from AuthHub ${admId}."
                 adm = lAdm
                 projectDir = project.file(".")
+                allowUnsafe = allowUnsafeRequested
             }
 
             project.tasks.register(dictionaryPushTo, PushAllAttributesTask.class) {
@@ -125,6 +172,7 @@ class AlfaExtension {
                 description "Pulls the attribute dictionary from AuthHub ${admId}."
                 adm = lAdm
                 projectDir = project.file(".")
+                allowUnsafe = allowUnsafeRequested
             }
 
             project.tasks.register(domainPushTo) {
@@ -145,10 +193,12 @@ class AlfaExtension {
             project.tasks.register(preCheckDomainPullFrom) { Task preCheckTask ->
                 group 'other'
                 description "Pre-flight git guard for DomainPullFrom${admId}: checks all output paths are clean before any writes."
+                Map<String, File> guardedPaths = domainPullFromDeps.collectEntries { String taskName ->
+                    [(taskName): (project.tasks.named(taskName).get() as GitGuarded).guardedOutputPath]
+                }
+                File rootDir = project.rootDir
                 preCheckTask.doFirst {
-                    GitOutputGuard.checkAll(preCheckTask, domainPullFromDeps.collect { String taskName ->
-                        project.tasks.named(taskName).get() as GitGuarded
-                    })
+                    GitOutputGuard.checkAll(preCheckTask, rootDir, allowUnsafeRequested, guardedPaths)
                 }
             }
 
@@ -168,22 +218,19 @@ class AlfaExtension {
         project.tasks.register(pullFromAdm, AdmPullTask.class) {
             group specificGroup
             adm = lAdm
-            admHash = lAdm.hashCode()
             domainFile = project.file("build/alfa/${group}/domain.yaml")
         }
 
         project.tasks.register(pushToAdm, AdmPushTask.class) {
             group specificGroup
-            domainFile project.tasks.buildAuthzDomain.domainFile
+            domainFile.set(project.tasks.buildAuthzDomain.domainFile)
             adm = lAdm
-            admHash = lAdm.hashCode()
         }
         }
         project.tasks.register(spawnAdsWithAdm, RunSpawnedAds.class) {
             group 'other'
             adm = lAdm
             config = lAlfa
-            admHash = lAdm.hashCode()
             classpath = project.configurations.adsRuntimeV2
             pipClasspath = project.configurations.pip
 
@@ -192,7 +239,6 @@ class AlfaExtension {
         project.tasks.register(waitToStartAdsForAdm, WaitAdsStartedTask.class) {
             group 'other'
             adm = lAdm
-            admHash = lAdm.hashCode()
         }
 
         project.tasks.register(runAdsWithAdm) {
@@ -236,7 +282,6 @@ class AlfaExtension {
             group 'other'
             adm = lAdm
             config = lAlfa
-            admHash = lAdm.hashCode()
         }
 
         if (!isHub) {
@@ -249,9 +294,8 @@ class AlfaExtension {
                     project.logger.info("  adding task ${taskName}. With source task ${sourceTask}")
                     project.tasks.register(taskName, AdmPushTask.class) {
                         group specificGroup
-                        domainFile project.tasks."${sourceTask}".domainFile
+                        domainFile.set(project.tasks."${sourceTask}".domainFile)
                         adm = lAdm
-                        admHash = lAdm.hashCode() + source.hashCode()
                         dependsOn project.tasks."${sourceTask}"
                     }
                 })

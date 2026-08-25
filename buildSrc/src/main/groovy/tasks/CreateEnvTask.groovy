@@ -2,38 +2,55 @@ package tasks
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
 
+import javax.inject.Inject
 import java.util.regex.Pattern
 
 @CacheableTask
-class CreateEnvTask extends DefaultTask {
+abstract class CreateEnvTask extends DefaultTask {
+
+    @Inject
+    abstract ProjectLayout getLayout()
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    final ConfigurableFileCollection sources = project.objects.fileCollection()
+    abstract ConfigurableFileCollection getSources()
+
+    @Internal
+    abstract Property<String> getBaseName()
 
     @OutputFile
-    final RegularFileProperty outputFile = project.objects.fileProperty()
+    abstract RegularFileProperty getEnvFile()
 
     @OutputFile
-    File getInfoFile() {
-        new File(outputFile.get().asFile.path + '.info')
-    }
+    abstract RegularFileProperty getInfoFile()
+
+    @OutputFile
+    abstract RegularFileProperty getEnvDefaultsFile()
 
     // Matches ${VAR}, ${VAR:default}, ${VAR:-default} — group 1: name, group 2: default value (optional)
     private static final Pattern ENV_PATTERN =
             Pattern.compile(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-?([^}]*))?\}/)
 
+    CreateEnvTask() {
+        baseName.convention('.env.generated')
+        envFile.convention(layout.buildDirectory.file(baseName))
+        infoFile.convention(layout.buildDirectory.file(baseName.map { it + '.info' }))
+        envDefaultsFile.convention(layout.buildDirectory.file(baseName.map { it + '.defaults' }))
+    }
+
     @TaskAction
     void execute() {
+        def base = layout.projectDirectory.asFile.toPath()
         // TreeMap for sorted output; value holds source files (ordered) and optional default value
         def envVars = new TreeMap<String, Map<String, Object>>()
 
         sources.asFileTree.each { File file ->
-            if (file.name.endsWith('.alfa')) return
-            def relativePath = project.relativePath(file)
+            def relativePath = base.relativize(file.toPath()).toString().replace('\\', '/')
             file.eachLine('UTF-8') { String line ->
                 def matcher = ENV_PATTERN.matcher(line)
                 while (matcher.find()) {
@@ -49,17 +66,24 @@ class CreateEnvTask extends DefaultTask {
             }
         }
 
-        File output = outputFile.get().asFile
+        File output = envFile.get().asFile
+        File defaults = envDefaultsFile.get().asFile
+        File info = infoFile.get().asFile
         output.parentFile.mkdirs()
 
-        output.withWriter('UTF-8') { writer ->
-            writer.writeLine("# See ${output.name}.info for more information")
-            envVars.each { String var, Map info ->
-                writer.writeLine("${var}=")
+        def writeVars = { File file, boolean withDefaults ->
+            file.withWriter('UTF-8') { writer ->
+                writer.writeLine("# See ${output.name}.info for more information")
+                envVars.each { String var, Map varInfo ->
+                    def value = withDefaults && varInfo.defaultValue != null ? varInfo.defaultValue : ''
+                    writer.writeLine("${var}=${value}")
+                }
             }
         }
+        writeVars(output, false)
+        writeVars(defaults, true)
 
-        infoFile.withWriter('UTF-8') { writer ->
+        info.withWriter('UTF-8') { writer ->
             writer.writeLine('Environment variables extracted from deployment, configuration and attribute connector files.')
             writer.writeLine('Fill in the values in the .env file and load it using the appropriate command for your platform.')
             writer.writeLine('')
@@ -75,9 +99,9 @@ class CreateEnvTask extends DefaultTask {
             writer.writeLine('')
             writer.writeLine('Variables')
             writer.writeLine('---------')
-            envVars.each { String var, Map info ->
-                def fileList = info.files.join(', ')
-                def defaultStr = info.defaultValue != null ? info.defaultValue : 'none'
+            envVars.each { String var, Map varInfo ->
+                def fileList = varInfo.files.join(', ')
+                def defaultStr = varInfo.defaultValue != null ? varInfo.defaultValue : 'none'
                 writer.writeLine('')
                 writer.writeLine("${var}")
                 writer.writeLine("  Referenced in: ${fileList}")
@@ -96,8 +120,8 @@ class CreateEnvTask extends DefaultTask {
             writer.writeLine('  name: access-decision-service')
             writer.writeLine('type: Opaque')
             writer.writeLine('stringData:')
-            envVars.each { String var, Map info ->
-                def defaultVal = info.defaultValue
+            envVars.each { String var, Map varInfo ->
+                def defaultVal = varInfo.defaultValue
                 if (defaultVal != null) {
                     writer.writeLine("#  ${var}:  # default: ${defaultVal}")
                 } else {
@@ -106,6 +130,6 @@ class CreateEnvTask extends DefaultTask {
             }
         }
 
-        logger.lifecycle("CreateEnv: wrote ${envVars.size()} variable(s) to ${output}")
+        logger.lifecycle("CreateEnv: wrote ${envVars.size()} variable(s) to ${output}, ${defaults.name} and ${info.name}")
     }
 }

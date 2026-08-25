@@ -19,6 +19,9 @@ class PullAllConnectorsTask extends DefaultTask implements GitGuarded {
     @Internal
     File projectDir
 
+    @Internal
+    boolean allowUnsafe
+
     @org.gradle.api.tasks.Input
     final org.gradle.api.provider.Property<String> relativePath = project.objects.property(String)
 
@@ -38,7 +41,7 @@ class PullAllConnectorsTask extends DefaultTask implements GitGuarded {
             throw new RuntimeException("Set oidcCredentials {} on adm " + adm.environment)
         }
         File outputDir = projectDir.toPath().resolve(relativePath.get()).toFile()
-        GitOutputGuard.check(this, outputDir)
+        GitOutputGuard.check(this, projectDir, allowUnsafe, outputDir)
         outputDir.mkdirs()
 
         logger.lifecycle("Pulling all attribute connectors from AuthHub at ${adm.host} to ${projectDir}")

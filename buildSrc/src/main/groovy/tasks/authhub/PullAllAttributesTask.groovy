@@ -19,6 +19,9 @@ class PullAllAttributesTask extends DefaultTask implements GitGuarded {
     @Internal
     File projectDir
 
+    @Internal
+    boolean allowUnsafe
+
     @org.gradle.api.tasks.Input
     final org.gradle.api.provider.Property<String> relativePath = project.objects.property(String)
 
@@ -38,7 +41,7 @@ class PullAllAttributesTask extends DefaultTask implements GitGuarded {
             throw new RuntimeException("Set oidcCredentials {} on adm " + adm.environment)
         }
         File outputFile = projectDir.toPath().resolve(relativePath.get()).toFile()
-        GitOutputGuard.check(this, outputFile)
+        GitOutputGuard.check(this, projectDir, allowUnsafe, outputFile)
         outputFile.parentFile.mkdirs()
         if (!outputFile.exists()) {
             outputFile.createNewFile()

@@ -2,18 +2,27 @@ package tasks.dictionary
 
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.*
 
+import javax.inject.Inject
+
 @CacheableTask
-class GenerateYamlDictionary extends DefaultTask {
+abstract class GenerateYamlDictionary extends DefaultTask {
+
+    @Inject
+    abstract ProjectLayout getLayout()
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
-    final RegularFileProperty inputFile = project.objects.fileProperty()
+    abstract RegularFileProperty getInputFile()
 
     @OutputFile
-    final RegularFileProperty outputFile = project.objects.fileProperty()
+    abstract RegularFileProperty getOutputFile()
+
+    @Internal
+    boolean allowUnsafe
 
     private static final Map<String, String> CATEGORY_MAP = [
         'subjectCat'    : 'AccessSubject',
@@ -25,7 +34,7 @@ class GenerateYamlDictionary extends DefaultTask {
     @TaskAction
     void execute() {
         File out = outputFile.get().asFile
-        GitOutputGuard.check(this, out)
+        GitOutputGuard.check(this, layout.projectDirectory.asFile, allowUnsafe, out)
         out.parentFile.mkdirs()
 
         List<Map> attributes = parseAlfa(inputFile.get().asFile.getText('UTF-8')).sort { it.yamlKey }

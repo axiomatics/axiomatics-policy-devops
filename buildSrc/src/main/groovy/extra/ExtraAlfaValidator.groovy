@@ -35,12 +35,20 @@ class ExtraAlfaValidator {
         })
     }
 
+    private static final List<String> hardCodedAttributeIds = List.of(
+            "urn:oasis:names:tc:xacml:1.0:environment:current-date",
+            "urn:oasis:names:tc:xacml:1.0:environment:current-dateTime",
+            "urn:oasis:names:tc:xacml:1.0:environment:current-time");
 
     static void visit(List<NamespaceDeclaration> namespaces,String file,  AttributeImpl attribute) {
         String namespaceString =  namespaces.isEmpty()? "" : namespaces.stream()
                 .map(it -> it.name)
                 .collect(Collectors.joining('.','','.')).toString()
         String fqn = namespaceString + attribute.name
+
+        if (hardCodedAttributeIds.contains(attribute.getUri())) {
+            return
+        }
 
         ICompositeNode node = NodeModelUtils.getNode(attribute);
 

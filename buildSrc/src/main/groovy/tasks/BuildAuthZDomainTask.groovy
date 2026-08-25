@@ -2,48 +2,65 @@ import com.axiomatics.domtool.cli.ConfigurableDomainCommand
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.FileTree
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.MapProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.*
 import org.yaml.snakeyaml.Yaml
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
-class BuildAuthZDomainTask extends DefaultTask {
+@CacheableTask
+abstract class BuildAuthZDomainTask extends DefaultTask {
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     File srcDir
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     FileTree xmlPolicies
 
     @OutputFile
-    File domainFile
+    abstract RegularFileProperty getDomainFile()
 
     @Input
     String mainPolicy
 
-    @InputFile
-    File versionFile
+    @Input
+    abstract Property<String> getDomainIdentity()
+
+    @Input
+    abstract Property<String> getGitCommitAuthor()
+
+    @Input
+    abstract Property<String> getGitCommitMessage()
+
+    @Input
+    abstract MapProperty<String, String> getExtraMetadata()
 
 
     @TaskAction
     execute() {
-        if (!versionFile.canRead()) {
-            throw new RuntimeException("Cannot read version file "+ versionFile)
-        }
+        File domainFileValue = domainFile.get().asFile
+
         def command = new ConfigurableDomainCommand();
         command.srcDir = srcDir;
         command.xmlPolicies = xmlPolicies;
         command.mainPolicy = mainPolicy;
-        command.outputYamlFile = domainFile
+        command.outputYamlFile = domainFileValue
 
-        command.metadataYamlFile = createMetadataFile(srcDir.toPath().resolve("metadata.yaml"),  project.extensions.alfa.metadata)
-        command.domainIdentityGitHash = versionFile.getText("UTF-8");
-        logger.info("Set version to ${command.domainIdentityGitHash}  based on content in ${versionFile.absolutePath}")
-        project.buildDir.toPath().resolve("version").toFile().write(versionFile.getText("UTF-8")[-7..-1],"UTF-8")
+        Map<String, String> metadataMap = new LinkedHashMap<>(extraMetadata.get())
+        if (gitCommitAuthor.get()) metadataMap.put("Author", gitCommitAuthor.get())
+        if (gitCommitMessage.get()) metadataMap.put("Commit-Message", gitCommitMessage.get())
+
+        command.metadataYamlFile = createMetadataFile(srcDir.toPath().resolve("metadata.yaml"), metadataMap)
+        command.domainIdentityGitHash = domainIdentity.get();
+        logger.info("Set version to ${command.domainIdentityGitHash}")
 
         logger.info("Building authorization domain from ${srcDir} with ${xmlPolicies.size()} xacml policies. Main policy" +
-                " is ${mainPolicy}. Domain identity: ${ command.domainIdentityGitHash}. Output to ${domainFile.getAbsolutePath()}")
+                " is ${mainPolicy}. Domain identity: ${ command.domainIdentityGitHash}. Output to ${domainFileValue.getAbsolutePath()}")
         command.call();
     }
 
@@ -71,7 +88,11 @@ class BuildAuthZDomainTask extends DefaultTask {
                 throw new RuntimeException("Failed to parse metadata file at " + srcMetadataYaml,e);
             }
         } else {
-            logger.info(srcMetadataYaml + " is null or not readable.");
+            // NOTE: srcMetadataYaml is a java.nio.file.Path, which implements Iterable<Path> - so
+            // Groovy's `+` operator on it resolves to list-concatenation (DefaultGroovyMethods'
+            // Iterable#plus), not string concatenation, and would throw a MissingMethodException
+            // out of logger.info(Object) here. Use a GString instead to force a real toString().
+            logger.info("${srcMetadataYaml} is null or not readable.");
         }
         File mapFile = File.createTempFile("alfa-domain-metadata-", ".yaml")
         mapFile.deleteOnExit()

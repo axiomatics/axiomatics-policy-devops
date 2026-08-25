@@ -18,3 +18,15 @@ resource.location:
   xacmlId: resource.location
   category: Resource
   datatype: string
+Attributes.currentDateTime:
+  xacmlId: urn:oasis:names:tc:xacml:1.0:environment:current-dateTime
+  category: Environment
+  datatype: dateTime
+Attributes.currentDate:
+  xacmlId: urn:oasis:names:tc:xacml:1.0:environment:current-date
+  category: Environment
+  datatype: date
+Attributes.currentTime:
+  xacmlId: urn:oasis:names:tc:xacml:1.0:environment:current-time
+  category: Environment
+  datatype: time

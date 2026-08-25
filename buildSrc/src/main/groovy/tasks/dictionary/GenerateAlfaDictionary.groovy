@@ -3,19 +3,28 @@ package tasks.dictionary
 import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.*
 import org.yaml.snakeyaml.Yaml
 
+import javax.inject.Inject
+
 @CacheableTask
-class GenerateAlfaDictionary extends DefaultTask implements GitGuarded {
+abstract class GenerateAlfaDictionary extends DefaultTask implements GitGuarded {
+
+    @Inject
+    abstract ProjectLayout getLayout()
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
-    final RegularFileProperty inputFile = project.objects.fileProperty()
+    abstract RegularFileProperty getInputFile()
 
     @OutputFile
-    final RegularFileProperty outputFile = project.objects.fileProperty()
+    abstract RegularFileProperty getOutputFile()
+
+    @Internal
+    boolean allowUnsafe
 
     @Internal
     @Override
@@ -31,7 +40,7 @@ class GenerateAlfaDictionary extends DefaultTask implements GitGuarded {
     @TaskAction
     void execute() {
         File out = outputFile.get().asFile
-        GitOutputGuard.check(this, out)
+        GitOutputGuard.check(this, layout.projectDirectory.asFile, allowUnsafe, out)
         out.parentFile.mkdirs()
 
         def yaml = new Yaml()

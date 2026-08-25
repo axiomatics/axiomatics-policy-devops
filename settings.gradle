@@ -20,4 +20,22 @@ plugins {
     id "org.gradle.toolchains.foojay-resolver-convention" version "1.0.0"
 }
 
+// JGit (used by Grgit in git-guard tasks) adds "**/.gitignore" to Ant's global default-excludes list the
+// first time it runs. On a reused Gradle daemon, a later build's file-tree scan (e.g. compileGroovyPlugins)
+// then sees that list has "changed" since the daemon started and fails hard. Pre-declaring it here — before
+// anything else can — makes JGit's later addition a no-op, so there's nothing left to detect as a change.
+// Both the "**/"-prefixed form (what JGit actually adds) and the bare form are declared: Ant's default
+// excludes are a plain Set<String> with no normalization, so only an exact string match is a true no-op —
+// declaring just one form still leaves the other as a "new" mutation for Ant to detect later.
+//
+// This must happen in the ROOT settings script, not (only) buildSrc/settings.gradle: Gradle's internal
+// PatternSpecFactory accepts whatever default-excludes state exists the *first* time it is ever consulted
+// in this daemon as its permanent baseline, with no validation at that point. Root settings.gradle always
+// evaluates before buildSrc is built, so declaring it here guarantees it lands before that first check —
+// including buildSrc's own internal bootstrap tasks (e.g. extractPluginRequests), which under
+// `--rerun-tasks` are forced to genuinely re-execute and trigger that first check earlier than usual,
+// specifically before buildSrc/settings.gradle's own body (and its own copy of this line) has run.
+org.apache.tools.ant.DirectoryScanner.addDefaultExclude("**/.gitignore")
+org.apache.tools.ant.DirectoryScanner.addDefaultExclude(".gitignore")
+
 rootProject.name = 'my-alfa-project' // TODO - This is the name of your project

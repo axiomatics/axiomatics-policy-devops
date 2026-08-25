@@ -3,13 +3,14 @@ package tasks
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import groovy.json.JsonSlurper
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
 import org.yaml.snakeyaml.LoaderOptions
 
 import java.util.function.Supplier
 
-class AdmPushTask extends AbstractAdmTask {
+abstract class AdmPushTask extends AbstractAdmTask {
 
 
     private static final ObjectMapper objectMapper
@@ -23,14 +24,14 @@ class AdmPushTask extends AbstractAdmTask {
     }
 
     @InputFile
-    File domainFile
+    abstract RegularFileProperty getDomainFile()
 
     @Internal
     String newDomainId
 
     protected String getMakeBody() {
         com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-        File yamlFile = domainFile
+        File yamlFile = domainFile.get().asFile
         logger.info("Source file is " + yamlFile.absolutePath);
         Object obj
         try (FileInputStream fis = new FileInputStream(yamlFile)) {
