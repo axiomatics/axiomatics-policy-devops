@@ -1,13 +1,14 @@
 package tasks.authhub
 
-import com.axiomatics.apd.authhub.client.AuthHubClient
-import com.axiomatics.apd.authhub.client.ProjectIdByName
 import com.axiomatics.apd.authhub.integration.AttributesPushAll
 import com.axiomatics.apd.authhub.services.DictionaryService
 import extensions.AdmExtension
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import remote.PromoteMessage
+import remote.RemoteConnection
 
 class PushAllAttributesTask extends DefaultTask {
 
@@ -30,18 +31,18 @@ class PushAllAttributesTask extends DefaultTask {
 
     @TaskAction
     void run() {
-        if (adm.oidcCredentials == null) {
-            throw new RuntimeException("Set oidcCredentials {} on adm " + adm.environment)
-        }
-        logger.lifecycle("Pushing attributes from ${projectDir} to AuthHub at ${adm.host}")
-        def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        try {
-            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
+        RemoteConnection remote = RemoteConnection.of(adm)
+        logger.lifecycle("Pushing attributes from ${projectDir} to ${remote.label} at ${remote.host}")
+        remote.withClient { client ->
+            def projectId = remote.projectId(client)
             def service = new DictionaryService(client, projectId)
-            def summary = new AttributesPushAll(service).execute(projectDir.toPath().resolve(relativePath.get()), continueOnHttp4xx.get())
+            def summary = new AttributesPushAll(service, PromoteMessage.of(name, projectDir)).execute(projectDir.toPath().resolve(relativePath.get()), continueOnHttp4xx.get())
             logger.lifecycle(summary.getMessage())
-        } finally {
-            client.close()
+            // every attribute is tried first (continueOnHttp4xx), so one run reports all rejected attributes
+            if (summary.failed) {
+                throw new GradleException("APD: ${remote.label} rejected ${summary.failed.size()} attribute(s): " +
+                        "${summary.failed}. The reasons are logged above.")
+            }
         }
     }
 }

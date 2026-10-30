@@ -1,13 +1,13 @@
 package tasks.authhub
 
-import com.axiomatics.apd.authhub.client.AuthHubClient
-import com.axiomatics.apd.authhub.client.ProjectIdByName
 import com.axiomatics.apd.authhub.integration.AlfaPoliciesPushAll
-import com.axiomatics.apd.authhub.services.DomainManagerService
+import com.axiomatics.apd.authhub.services.PolicyPackageService
 import extensions.AdmExtension
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import remote.PromoteMessage
+import remote.RemoteConnection
 
 class PushAlfaPoliciesTask extends DefaultTask {
 
@@ -26,18 +26,13 @@ class PushAlfaPoliciesTask extends DefaultTask {
 
     @TaskAction
     void run() {
-        if (adm.oidcCredentials == null) {
-            throw new RuntimeException("Set oidcCredentials {} on adm " + adm.environment)
-        }
-        logger.lifecycle("Pushing ALFA policies from ${projectDir} to AuthHub at ${adm.host}")
-        def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        try {
-            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
-            def service = new DomainManagerService(client, projectId)
-            def summary = new AlfaPoliciesPushAll(service).execute(projectDir.toPath().resolve(relativePath.get()))
+        RemoteConnection remote = RemoteConnection.of(adm)
+        logger.lifecycle("Pushing ALFA policies from ${projectDir} to ${remote.label} at ${remote.host}")
+        remote.withClient { client ->
+            def projectId = remote.projectId(client)
+            def service = new PolicyPackageService(client, projectId)
+            def summary = new AlfaPoliciesPushAll(service, PromoteMessage.of(name, projectDir)).execute(projectDir.toPath().resolve(relativePath.get()))
             logger.lifecycle(summary.getMessage())
-        } finally {
-            client.close()
         }
     }
 }

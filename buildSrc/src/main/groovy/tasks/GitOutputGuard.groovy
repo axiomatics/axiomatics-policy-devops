@@ -48,6 +48,36 @@ class GitOutputGuard {
         }
     }
 
+    /**
+     * Requires the whole working tree to be clean, including untracked files. Unlike {@link #check}, a missing
+     * git repository is also refused: git is then the only way to undo the task's changes.
+     */
+    static void checkWorkingTreeClean(Task task, File rootDir, boolean allowUnsafeRequested) {
+        boolean allowUnsafe = System.getProperty('apd.allowUnsafe') == 'true' || allowUnsafeRequested
+        String problem
+        def grgit = null
+        try {
+            grgit = Grgit.open(currentDir: rootDir)
+            if (grgit.status().clean) {
+                return
+            }
+            problem = "there are uncommitted changes or untracked files"
+        } catch (Exception e) {
+            problem = "${rootDir} is not a git repository (${e.message})"
+        } finally {
+            grgit?.close()
+        }
+
+        if (allowUnsafe) {
+            task.logger.warn("WARNING: Task ${task.name}: ${problem}\napd.allowUnsafe=true - proceeding anyway.")
+            return
+        }
+        throw new GradleException(
+                "Task ${task.name} aborted: ${problem}\n" +
+                "Commit all files first, so the changes made by ${task.name} can be reviewed and undone with git, " +
+                "or bypass this check with: gradlew ${task.name} -Dapd.allowUnsafe=true")
+    }
+
     static void check(Task task, File rootDir, boolean allowUnsafeRequested, File outputPath) {
         def grgit = null
         try {

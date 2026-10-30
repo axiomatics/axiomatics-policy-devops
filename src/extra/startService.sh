@@ -4,7 +4,7 @@
 set -a
 FILE=etc/pod_labels
 if [ -f "$FILE" ]; then
-    source $FILE
+    . $FILE
 fi
 set +a
 
@@ -12,10 +12,6 @@ set +a
 set -x
 set -u
 
-export build=`grep -w 'identity:' domain.yaml | awk -F': ' '{print $2}' | head -n1 | tr -d '\n'`
-echo "Build id: ${build}"
-
 # After jar directive, add any additional Spring Boot arguments if needed
 java      \
-           -jar access-decision-service.jar \
-           --build=${build}
+           -jar access-decision-service.jar

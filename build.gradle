@@ -6,22 +6,23 @@ version = '1.0'
 group = 'com.myorg.alfa'
 
 alfa {
-    namespace "MyProject"
     mainpolicy "acme.Main"
     //withVisualTrace false //Disable evaluation traces of tests, speeds up the tests if you do not need the traces.
 
     licenseFile "license/axiomatics_ADS.license"
 
     repositories {
-        //Add one or more ADM repositories to get push, pull, run, test and promote tasks
+        //Add one or more remotes (AuthHub), each with its own push, pull and test tasks. See
+        //  https://docs.axiomatics.com/axiomatics-policy-devops/integrations-cicd/hub-integration
+        //  Never write secrets in this file: read them from environment variables, as client_secret below.
         /**
-         adm {
-         environment 'Dev'
-         host 'https://myaps.acme.com'
+         hub {
+         host 'https://myhub.acme.com'
+         project 'MyProject'
          domainName 'DevStaging'
          oidcCredentials {
-            client_id 'ads'
-            client_secret ''
+            client_id 'apd'
+            client_secret System.getenv('HUB_CLIENT_SECRET')
            }
          }
          **/

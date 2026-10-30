@@ -1,212 +1,101 @@
 package tasks
 
 import extensions.AdmExtension
-import extensions.AlfaExtension
 import org.gradle.api.DefaultTask
-import org.gradle.api.file.FileCollection
-import org.gradle.api.file.ProjectLayout
-import org.gradle.api.tasks.InputFiles
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.Classpath
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.jvm.Jvm
+import remote.AdsApplicationYaml
+import remote.RemoteConnection
 
-import javax.inject.Inject
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
-// Starts a live local ADS process for interactive dev/test use — there is no sensible cached
-// artifact here (the "output" is a running server), so this task is never up-to-date by design.
+/**
+ * Starts ADS in the background with the domain domainName of a remote's ADM (spawnAdsWith...). ADS writes its output to
+ * {@link #getAdsLogFile()}; the process and its HTTP port are kept on the remote ({@code AdmExtension.process},
+ * {@code adsHttpPort}) for the tasks that wait for, use and stop it. The output is a running server, so never
+ * up-to-date.
+ */
 abstract class RunSpawnedAds extends DefaultTask {
-
-    @Inject
-    abstract ProjectLayout getLayout()
-
-    @Internal
-    AlfaExtension config
 
     @Internal
     AdmExtension adm
 
-    @InputFiles
-    FileCollection classpath
+    /** The ADS fat jar. */
+    @Classpath
+    abstract ConfigurableFileCollection getClasspath()
 
-    @InputFiles
-    FileCollection pipClasspath
+    /** Jars ADS loads from lib/: attribute connectors and the project's own jar. */
+    @Classpath
+    abstract ConfigurableFileCollection getPipClasspath()
+
+    @Internal
+    abstract RegularFileProperty getLicenseFile()
+
+    @Internal
+    abstract DirectoryProperty getWorkDir()
+
+    @Internal
+    abstract RegularFileProperty getAdsLogFile()
 
     RunSpawnedAds() {
         outputs.upToDateWhen { false }
+        workDir.convention(project.layout.buildDirectory.dir(name))
+        adsLogFile.convention(workDir.file("ads.log"))
     }
 
     @TaskAction
     void run() {
-        if (config == null || adm == null) {
-            throw new RuntimeException("Inputs can not be null")
-        }
-        String java = Jvm.current().getJavaExecutable().getAbsolutePath()
-        logger.info("Starting ADS with domain from ${adm.environment}")
-        logger.info("Java is ${java}")
-        def cmds = new ArrayList<String>()
-        logger.info("Classpath is ${classpath.asPath}")
-        logger.info("Environment is ${adm.envVariable}")
-        cmds << java
-
-        if (System.getProperty("javax.net.ssl.trustStore") != null) {
-            cmds << "-Djavax.net.ssl.trustStore=" + System.getProperty("javax.net.ssl.trustStore")
-        }
-        if (System.getProperty("javax.net.ssl.trustStorePassword") != null) {
-            cmds << "-Djavax.net.ssl.trustStorePassword=" + System.getProperty("javax.net.ssl.trustStorePassword")
-        }
-        if (System.getProperty("javax.net.ssl.trustStoreType") != null) {
-            cmds << "-Djavax.net.ssl.trustStoreType=" + System.getProperty("javax.net.ssl.trustStoreType")
+        RemoteConnection remote = RemoteConnection.of(adm)
+        File dir = workDir.get().asFile
+        File libDir = new File(dir, "lib")
+        libDir.deleteDir()
+        libDir.mkdirs()
+        pipClasspath.files.each { File jar ->
+            logger.info("Staging for ADS: ${jar.name}")
+            Files.copy(jar.toPath(), new File(libDir, jar.name).toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
 
-        // ADS v2 is a Spring Boot fat JAR (PropertiesLauncher) — no main class or server directive needed
-        cmds << "-jar"
-        cmds << classpath.singleFile.absolutePath
+        String domainUrl = remote.withClient { client -> remote.domainManager(client).getDomainDocumentUrl(remote.domainName) }
+        logger.lifecycle("Starting ADS with domain ${domainUrl} of ${remote.label}")
+        File configFile = new File(dir, "application.yml")
+        configFile.text = AdsApplicationYaml.of(remote, domainUrl, licenseFile.get().asFile.absolutePath, logger.infoEnabled).render()
+        logger.info("ADS configuration: ${configFile}")
 
         if (adm.adsHttpPort == null) {
-            ServerSocket socket = new ServerSocket(0)
-            socket.close()
-            int port = socket.getLocalPort()
-            if (port < 1) {
-                throw new RuntimeException("Could not get local port")
-            }
-            adm.adsHttpPort = port
-            logger.info("Obtained free port ${port}")
+            adm.adsHttpPort = freePort()
+            logger.info("Obtained free port ${adm.adsHttpPort}")
         } else {
             logger.lifecycle("Port overridden: " + adm.adsHttpPort)
         }
 
-        // Stage pip jars into lib/ next to the working dir so PropertiesLauncher picks them up
-        def workDir = layout.buildDirectory.dir(this.name).get().asFile.toPath()
-        def libDir = workDir.resolve("lib")
-        libDir.toFile().mkdirs()
-        if (pipClasspath != null && !pipClasspath.isEmpty()) {
-            pipClasspath.files.each { jar ->
-                def dest = libDir.resolve(jar.name).toFile()
-                if (!dest.exists()) {
-                    logger.info("Staging pip jar: " + jar.name)
-                    java.nio.file.Files.copy(jar.toPath(), dest.toPath())
-                }
+        List<String> command = [Jvm.current().javaExecutable.absolutePath]
+        ["javax.net.ssl.trustStore", "javax.net.ssl.trustStorePassword", "javax.net.ssl.trustStoreType"].each { String key ->
+            if (System.getProperty(key) != null) {
+                command << "-D${key}=${System.getProperty(key)}".toString()
             }
         }
+        // ADS v2 is a Spring Boot fat JAR (PropertiesLauncher): it loads lib/ of the working directory
+        command << "-jar" << classpath.singleFile.absolutePath
+        command << "--spring.config.additional-location=file:${configFile.absolutePath}".toString()
+        command << "--server.port=${adm.adsHttpPort}".toString()
 
-        def configFile = workDir.resolve("application.yml")
-        def configFileAsString = configFile.toAbsolutePath().toString()
-        logger.info("Config file is ${configFileAsString}")
-        def configContent = getApplicationYaml()
-        logger.info("Config content: ${configContent}")
-        configFile.write(configContent)
-
-        cmds << "--spring.config.additional-location=file:" + configFileAsString
-        cmds << "--server.port=" + adm.adsHttpPort
-
-        ProcessBuilder builder = new ProcessBuilder(cmds)
-        builder.directory(workDir.toFile())
-        builder.environment() << adm.envVariable
-        builder.redirectErrorStream(true)
-
+        File logFile = adsLogFile.get().asFile
+        logger.info("ADS output: ${logFile}")
+        ProcessBuilder builder = new ProcessBuilder(command)
+                .directory(dir)
+                .redirectErrorStream(true)
+                .redirectOutput(logFile)
+        builder.environment().putAll(adm.envVariable.collectEntries { k, v -> [(k): String.valueOf(v)] } as Map<String, String>)
         adm.process = builder.start()
     }
 
-    private String getDomainUrl() {
-        boolean isBasic = adm.basicCredentials != null
-        def template
-        if (isBasic) {
-            template = adm.apiUrlPullStandaloneTemplate
-        } else {
-            template = adm.apiUrlPullAsmTemplate
-        }
-        String projectIdOrName;
-        logger.lifecycle("Repo is type AuthHub")
-        if (adm.repoType.equals("hub")) {
-
-                def client = new com.axiomatics.apd.authhub.client.AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-                projectIdOrName = new com.axiomatics.apd.authhub.client.ProjectIdByName(adm.alfa.namespace, client).get()
-
-
-        } else {
-           projectIdOrName= adm.alfa.namespace
-        }
-
-        return adm.host + String.format(template,projectIdOrName, adm.domainName)
-    }
-
-    @Internal
-    String getApplicationYaml() {
-        def url = getDomainUrl()
-        logger.lifecycle("Location of domain is ${url}")
-        def tlsBundleName = hasTlsConfig() ? "admBundle" : null
-        return """
-license: file:${layout.projectDirectory.asFile}/${config.licenseFile}
-
-domain:
-  path: ${url}
-  authentication:
-${getAuthenticationYaml(tlsBundleName)}
-
-${getSpringYaml(tlsBundleName)}
-
-logging:
-  level:
-    root: WARN
-    org.apache.jcs: \${LOGLEVEL:-${logger.isInfoEnabled() ? "WARN" : "INFO"}}
-    com.axiomatics: \${LOGLEVEL:-${logger.isInfoEnabled() ? "DEBUG" : "INFO"}}
-"""
-    }
-
-    private boolean hasTlsConfig() {
-        return System.getProperty("javax.net.ssl.trustStore") != null
-    }
-
-    String getAuthenticationYaml(String tlsBundleName) {
-        def tls = tlsBundleName ? "\n    tlsConfigurationId: ${tlsBundleName}" : ""
-        if (adm.basicCredentials != null) {
-            return """    username: ${adm.basicCredentials.username}
-    password: ${adm.basicCredentials.password}${tls}"""
-        } else {
-            return """    oauth2ClientId: adm-client${tls}"""
-        }
-    }
-
-    String getSpringYaml(String tlsBundleName) {
-        def securityParts = []
-        def springParts = []
-
-        // Always configure a local user for the test task to connect to ADS with basic auth
-        securityParts << """    user:
-      name: pdp-user
-      password: secret"""
-
-        if (adm.oidcCredentials != null) {
-            securityParts << """    oauth2:
-      client:
-        registration:
-          adm-client:
-            client-id: ${adm.oidcCredentials.client_id}
-            client-secret: ${adm.oidcCredentials.client_secret}
-            scope: openid
-            authorization-grant-type: client_credentials
-            provider: adm-client
-        provider:
-          adm-client:
-            token-uri: ${adm.host}${adm.oidcCredentials.token_uri}"""
-        }
-
-        springParts << "  security:\n" + securityParts.join("\n")
-
-        if (tlsBundleName) {
-            String file = System.getProperty("javax.net.ssl.trustStore")
-            String password = System.getProperty("javax.net.ssl.trustStorePassword")
-            String type = System.getProperty("javax.net.ssl.trustStoreType", "JKS")
-            println("Truststore for ADS to ADM set: " + file)
-            springParts << """  ssl:
-    bundle:
-      jks:
-        ${tlsBundleName}:
-          truststore:
-            location: file:${file}
-            password: ${password}
-            type: ${type}"""
-        }
-        return "spring:\n" + springParts.join("\n")
+    private static String freePort() {
+        new ServerSocket(0).withCloseable { it.localPort.toString() }
     }
 }

@@ -8,7 +8,8 @@ public class ConfigurableDomainCommand extends com.axiomatics.domtool.cli.Domain
 
     // NOTE! Do not move this class to another pacakge, it needs to access package private methods
 
-    private static final String MAIN_POLICY_PREFIX = "http://axiomatics.com/alfa/identifier/"
+    /** Prefix the ALFA compiler gives policy and policy set ids: {@code acme.Main} is {@code <prefix>acme.Main}. */
+    public static final String MAIN_POLICY_PREFIX = "http://axiomatics.com/alfa/identifier/"
     public File srcDir;
     public FileTree xmlPolicies;
     public String mainPolicy;

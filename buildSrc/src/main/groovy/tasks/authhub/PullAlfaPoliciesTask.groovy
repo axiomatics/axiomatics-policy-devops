@@ -1,15 +1,14 @@
 package tasks.authhub
 
-import com.axiomatics.apd.authhub.client.AuthHubClient
-import com.axiomatics.apd.authhub.client.ProjectIdByName
 import com.axiomatics.apd.authhub.integration.AlfaPoliciesPullAll
-import com.axiomatics.apd.authhub.services.DomainManagerService
+import com.axiomatics.apd.authhub.services.PolicyPackageService
 import extensions.AdmExtension
 import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import remote.RemoteConnection
 
 class PullAlfaPoliciesTask extends DefaultTask implements GitGuarded {
 
@@ -37,22 +36,17 @@ class PullAlfaPoliciesTask extends DefaultTask implements GitGuarded {
 
     @TaskAction
     void run() {
-        if (adm.oidcCredentials == null) {
-            throw new RuntimeException("Set oidcCredentials {} on adm " + adm.environment)
-        }
+        RemoteConnection remote = RemoteConnection.of(adm)
         File outputDir = projectDir.toPath().resolve(relativePath.get()).toFile()
         GitOutputGuard.check(this, projectDir, allowUnsafe, outputDir)
         outputDir.mkdirs()
 
-        logger.lifecycle("Pulling ALFA policies from AuthHub at ${adm.host} to ${projectDir}")
-        def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        try {
-            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
-            def service = new DomainManagerService(client, projectId)
+        logger.lifecycle("Pulling ALFA policies from ${remote.label} at ${remote.host} to ${projectDir}")
+        remote.withClient { client ->
+            def projectId = remote.projectId(client)
+            def service = new PolicyPackageService(client, projectId)
             def summary = new AlfaPoliciesPullAll(service).execute(outputDir.toPath())
             logger.lifecycle(summary.getMessage())
-        } finally {
-            client.close()
         }
     }
 }

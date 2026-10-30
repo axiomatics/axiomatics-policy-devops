@@ -1,50 +1,37 @@
 package tasks
 
-
+import com.axiomatics.apd.authhub.integration.DomainPull
+import extensions.AdmExtension
+import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.TaskAction
+import remote.RemoteConnection
 
-import java.util.function.Supplier
+/**
+ * Writes the domain named domainName in the ADM of a remote, AuthHub or ASM7, to a YAML file. The remote can change
+ * independently of anything Gradle observes, so never up-to-date.
+ */
+abstract class AdmPullTask extends DefaultTask {
 
-abstract class AdmPullTask extends AbstractAdmTask {
-
+    @Internal
+    AdmExtension adm
 
     @OutputFile
     abstract RegularFileProperty getDomainFile()
 
-
-    protected String getMakeBody() {
-        null
+    AdmPullTask() {
+        outputs.upToDateWhen { false }
     }
 
-    @Override
-    protected String getRequestMethod() {
-        "GET"
-    }
-
-    @Override
-    protected String getAdmUrlTemplate() {
-        adm.apiUrlPullStandaloneTemplate
-    }
-
-    @Override
-    protected String getAsmAdmUrlTemplate() {
-        adm.apiUrlPullAsmTemplate
-    }
-
-    @Override
-    protected int getExpectedHttpReturnCode() {
-        200
-    }
-
-    @Override
-    protected void handleResposne(Supplier<String> response) {
-        File domainFileValue = domainFile.get().asFile
-        domainFileValue.withWriter("utf-8") {writer->
-            writer.write(response.get())}
-        logger.lifecycle("Domain ${getUrl()} stored to ${domainFileValue.getAbsolutePath()}")
-    }
-    protected String getServiceName() {
-        return "ADM "+getRequestMethod();
+    @TaskAction
+    void pull() {
+        RemoteConnection remote = RemoteConnection.of(adm)
+        File file = domainFile.get().asFile
+        logger.lifecycle("Pulling domain '${remote.domainName}' from ${remote.label} at ${remote.host}")
+        remote.withClient { client ->
+            logger.lifecycle(new DomainPull(remote.domainManager(client), remote.domainName).execute(file.toPath()).message)
+        }
     }
 }
