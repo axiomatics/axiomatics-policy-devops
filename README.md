@@ -8,8 +8,6 @@ Online documentation from Axiomatics is available at https://docs.axiomatics.com
 Axiomatics Labs with developer resources is available at https://axiomatics.com/labs/
 
 
-ALFA introduction available at https://axiomatics.github.io/alfa-vscode-doc/docs/alfa-introduction/introduction/
-
 ### Quick start
 
 1. Add the Axiomatics access key ID and secret access key, that you received from Axiomatics, in file
