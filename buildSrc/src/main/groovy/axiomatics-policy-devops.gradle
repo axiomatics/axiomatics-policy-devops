@@ -1,8 +1,6 @@
 import extra.MyLogger
 import org.gradle.api.GradleException
 
-def prefix = "http://axiomatics.com/alfa/identifier/"
-
 def myErrOut = new ByteArrayOutputStream();
 def BUILD_ALFA_DEPENDENCIES = project.rootProject.file("build/alfa/dependencies")
 rootProject.plugins.apply('java')
@@ -48,7 +46,6 @@ configurations {
     adsRuntimeV1.extendsFrom(pipAds1)
     adsRuntimeV2
     adsRuntimeV1.extendsFrom(implementation)
-    authHubClient
 }
 
 
@@ -59,29 +56,22 @@ configurations.all {
 
 dependencies {
 
-    // The following 4 libs are needed because our PIPs decleare them as providedByHost and thus we need to manually
-    // include them.
-    testRuntimeOnly ("jakarta.xml.bind:jakarta.xml.bind-api:2.3.3")
-    testRuntimeOnly ("javax.activation:activation:1.1.1")
-    testRuntimeOnly("org.glassfish.jaxb:jaxb-runtime:2.4.0-b180830.0438")
-    testRuntimeOnly("javax.xml.bind:jaxb-api:2.4.0-b180830.0359")
-
-    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.7"
+    compileOnly "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.2.0"
 
     testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation('org.junit.jupiter:junit-jupiter')
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    testRuntimeOnly 'ch.qos.logback:logback-classic:1.5.38'
+    testRuntimeOnly 'ch.qos.logback:logback-classic:1.6.6'
     testImplementation group: 'org.hamcrest', name: 'hamcrest', version: '3.0'
-    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.1.7"
+    testImplementation "com.axiomatics.alfa.test:axiomatics-policy-devops-bundle:26.2.0"
 
-    domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.14.0')
-    domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.14.0')
+    domTool(group: 'com.axiomatics.domtool', name: 'domtool', version: '0.15.0')
+    domTool(group: 'com.axiomatics.domtool', name: 'domtool-lib', version: '0.15.0')
 
     adsCompile "com.axiomatics.access-decision-service:ads-service:2.2.3"
 
     adsRuntimeV1 "com.axiomatics.access-decision-service:access-decision-service:1.17.1"
-    adsRuntimeV2 "com.axiomatics:access-decision-service:26.1.7"
+    adsRuntimeV2 "com.axiomatics:access-decision-service:26.2.0"
 
     pipAds1 "com.axiomatics.attribute-connectors.http:http-attribute-connector:5.5.2@jar"
     pipAds1 "com.axiomatics.attribute-connectors.parser:parser-attribute-connectors:1.1.1@jar"
@@ -89,7 +79,6 @@ dependencies {
     pipAds1 "com.axiomatics.attribute-connectors.ldap:ldap-attribute-connector:6.4.1@jar"
     pipAds1 "com.axiomatics.attribute-connectors.table:table-attribute-connector:7.2.1@jar"
 
-    authHubClient "com.axiomatics.alfa.test:authhub-apd-integration:26.1.7"
     alfac "com.axiomatics.alfa:alfac:1.5.2"
 }
 java {
@@ -165,8 +154,16 @@ task runAds(type: JavaExec) {
     }
 }
 
+// Deprecated since 26.2, removed in 27.1 (APD-204): ADS 1 (runAdsV1, buildAdsDockerImage); use ADS 26
+def ads1Deprecation = { String task, String replacement ->
+    "APD: task '${task}' (ADS 1) is deprecated and will be removed in APD 27.1. Use ADS 26 with '${replacement}' " +
+            "instead; the ADS 1 configuration is in extra/exampleAds1Configuration."
+}
+
 task runAdsV1(type: JavaExec) {
+    description = "Deprecated, removed in APD 27.1: starts ADS 1 locally. Use runAds (ADS 26)."
     doFirst {
+        logger.warn(ads1Deprecation(name, "runAds"))
         myErrOut = new MyLogger();
         errorOutput myErrOut
         logger.info("Starting ADS from ${workingDir}.")
@@ -185,6 +182,10 @@ task runAdsV1(type: JavaExec) {
 task stageAdsFiles {}
 task buildAdsDockerImage {
     group = "axiomatics-deprecated"
+    description = "Deprecated, removed in APD 27.1: builds an ADS 1 Docker image. Use stageDeployment (ADS 26) and build the image from build/install/deployment/ads."
+    doLast {
+        logger.warn(ads1Deprecation(name, "stageDeployment"))
+    }
 }
 
 task stageResourcesForAds(type: Copy) {

@@ -1,6 +1,9 @@
+import com.axiomatics.domtool.Domain
+import com.axiomatics.domtool.XacmlPolicyUtil
 import com.axiomatics.domtool.cli.ConfigurableDomainCommand
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
 import org.gradle.api.file.FileTree
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.MapProperty
@@ -54,6 +57,8 @@ abstract class BuildAuthZDomainTask extends DefaultTask {
         Map<String, String> metadataMap = new LinkedHashMap<>(extraMetadata.get())
         if (gitCommitAuthor.get()) metadataMap.put("Author", gitCommitAuthor.get())
         if (gitCommitMessage.get()) metadataMap.put("Commit-Message", gitCommitMessage.get())
+        // ADM replaces the domain's identity with its own domain id; the metadata keeps it
+        if (domainIdentity.get()) metadataMap.put("Git-Identity", domainIdentity.get())
 
         command.metadataYamlFile = createMetadataFile(srcDir.toPath().resolve("metadata.yaml"), metadataMap)
         command.domainIdentityGitHash = domainIdentity.get();
@@ -62,6 +67,31 @@ abstract class BuildAuthZDomainTask extends DefaultTask {
         logger.info("Building authorization domain from ${srcDir} with ${xmlPolicies.size()} xacml policies. Main policy" +
                 " is ${mainPolicy}. Domain identity: ${ command.domainIdentityGitHash}. Output to ${domainFileValue.getAbsolutePath()}")
         command.call();
+        checkMainPolicy(command.getResult(), domainFileValue)
+    }
+
+    /**
+     * Fails the build when the main policy is not a top-level policy or policy set of the built domain (the same rule as
+     * the tests' local PDP). domtool writes any main policy it is given; ADS would only fail when loading the domain.
+     * The ALFA compiler writes one XACML document per top-level policy, so each document's root id is one of them.
+     */
+    private static void checkMainPolicy(Domain domain, File domainFile) {
+        if (domain?.policy == null) {
+            throw new GradleException("Internal APD error: domtool returned no domain for ${domainFile}")
+        }
+        String mainPolicyId = domain.policy.mainPolicyId
+        List<String> topLevel = (domain.policy.xacmlSpecifications ?: []).collect { XacmlPolicyUtil.getPolicyIdentifier(it) }
+        if (!topLevel.contains(mainPolicyId)) {
+            domainFile.delete()
+            String found = topLevel.findAll().collect { "'${withoutAlfaPrefix(it)}'" }.sort().join(",")
+            throw new GradleException("Main policy ${withoutAlfaPrefix(mainPolicyId)} not found. Found policies ${found ?: 'none'}." +
+                    " Set the main policy with alfa { mainpolicy } in build.gradle.")
+        }
+    }
+
+    private static String withoutAlfaPrefix(String id) {
+        String prefix = ConfigurableDomainCommand.MAIN_POLICY_PREFIX
+        id?.startsWith(prefix) ? id.substring(prefix.length()) : id
     }
 
     def Path createMetadataFile(Path srcMetadataYaml, Map<String, String> inProcessMetaDataMap) {

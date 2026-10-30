@@ -1,5 +1,6 @@
 package tasks.dictionary
 
+import extensions.AlfaExtension
 import tasks.GitGuarded
 import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
@@ -69,7 +70,7 @@ abstract class GenerateJavaDictionary extends DefaultTask implements GitGuarded 
             w.writeLine(' * <p>')
             w.writeLine(" * Generated from commit ${commitRefValue} on ${commitDateValue}.")
             w.writeLine(' * <p>')
-            w.writeLine(' * Do not edit manually — regenerate with: ./gradlew generateJavaDictionary')
+            w.writeLine(" * Do not edit manually — regenerate with: ./gradlew ${AlfaExtension.GENERATE_JAVA_DICTIONARY_TASK}")
             w.writeLine(' */')
             w.writeLine('public final class Dictionary {')
             w.writeLine('')

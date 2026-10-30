@@ -3,6 +3,7 @@ package com.myorg.alfa;
 import com.axiomatics.cr.alfa.test.junit.AlfaExtension;
 import com.axiomatics.cr.alfa.test.junit.TestRequest;
 import com.axiomatics.cr.alfa.test.junit.TestResponse;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -17,6 +18,7 @@ public class MySystemTest {
     public AlfaExtension alfa = new AlfaExtension().withAttributeConnectors();
 
     @Test
+    @DisplayName("REQ-ABAC-3: Should permit manager Martin to access resource 1")
     public void shouldGiveMartinAccessToResource1() {
         TestRequest target = alfa.newTestRequest()
                 .with("user.identity", "martin")
@@ -29,6 +31,7 @@ public class MySystemTest {
     }
 
     @Test
+    @DisplayName("REQ-ABAC-1: Should permit consultant Cecilia to access resource 1 in her location")
     public void shouldGiveCeciliaAccessToResource1() {
         TestRequest target = alfa.newTestRequest()
                 .with("user.identity", "cecilia")
@@ -41,6 +44,7 @@ public class MySystemTest {
     }
 
     @Test
+    @DisplayName("REQ-ABAC-2: Should not permit consultant Cecilia to access resource 2 in another location")
     public void shouldNotGiveCeciliaAccessToResource2() {
         TestRequest target = alfa.newTestRequest()
                 .with("user.identity", "cecilia")

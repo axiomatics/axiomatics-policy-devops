@@ -1,31 +1,26 @@
 package extensions
 
-import groovy.json.JsonSlurper
-import org.apache.http.HttpResponse
-import org.apache.http.util.EntityUtils
 import org.gradle.api.Project
-import org.gradle.api.provider.Property
-import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.Nested
-import org.gradle.internal.impldep.org.apache.http.NameValuePair
-import org.gradle.internal.impldep.org.apache.http.client.entity.UrlEncodedFormEntity
-import org.gradle.internal.impldep.org.apache.http.client.methods.HttpPost
-import org.gradle.internal.impldep.org.apache.http.impl.client.CloseableHttpClient
-import org.gradle.internal.impldep.org.apache.http.impl.client.HttpClients
-import org.gradle.internal.impldep.org.apache.http.message.BasicNameValuePair
 
-import java.nio.charset.Charset
-
-//This descripes a remote API that hub can talk with such as adm and authhub. AuthHub is default
+/**
+ * A remote declared in {@code alfa { repositories { ... } }}: AuthHub ({@code hub {}} or {@code remote {}}, the
+ * default) or the ADM of ASM7 ({@code adm {}}). Configuration only; how the remote is reached is decided by
+ * {@code remote.RemoteConnection}.
+ */
 public class AdmExtension {
 
+    static final String TOKEN_PATH_TEMPLATE = "/auth/realms/%s/protocol/openid-connect/token"
 
-    String environment = "default"
+    // names the tasks of this remote; optional, set to <project>_<domainName> at registration when not set
+    String environment
     String host;
     String domainName
+    // AuthHub project (ASM7: namespace) of this remote; set with project 'x' (the field project is Gradle's Project)
+    String projectName
 
     String realm = "hub"//asm or hub
-    String tokenUri = "/auth/realms/"+realm+"/protocol/openid-connect/token";
+    // token endpoint path; when not set it is derived from realm, see effectiveTokenUri()
+    String tokenUri
     String apiUrlPushStandaloneTemplate = "/adm/namespaces/%s/names/%s"
     String apiUrlPushAsmTemplate = "/api" + apiUrlPushStandaloneTemplate
     String apiUrlPullStandaloneTemplate = apiUrlPushStandaloneTemplate + "/domain"
@@ -33,19 +28,25 @@ public class AdmExtension {
     String adsHttpPort = null;
     String repoType = "hub" //asm or hub etc
 
-    String getSecondPathElement() {
-        this.repoType.equals("hub")?"adm":"api"
-    }
-    String getFirstPathElement() {
-        this.repoType.equals("hub")?"api":"adm"
-    }
-
     void realm(String value) {
         this.realm = value
     }
     void tokenUri(String value) {
         this.tokenUri = value
     }
+
+    /**
+     * The OIDC token endpoint path in use, first set of: {@code oidcCredentials.token_uri}, the token endpoint of
+     * {@code oidcCredentials.realm}, {@code tokenUri}, the token endpoint of {@code realm} (default {@code hub}).
+     */
+    String effectiveTokenUri() {
+        oidcCredentials?.token_uri ?: tokenPath(oidcCredentials?.realm) ?: tokenUri ?: tokenPath(realm)
+    }
+
+    private static String tokenPath(String realm) {
+        realm ? String.format(TOKEN_PATH_TEMPLATE, realm) : null
+    }
+
     void apiUrlPushStandaloneTemplate(String value) {
         this.apiUrlPushStandaloneTemplate = value
     }
@@ -65,28 +66,23 @@ public class AdmExtension {
         this.repoType = value
     }
 
-
-
-    @Nested
     BasicCredentials basicCredentials;
-    @Nested
     OidcCredentials oidcCredentials;
 
     Project project;
 
+    // the ADS started by spawnAdsWith<environment><domainName>
     Process process
     AlfaExtension alfa
 
-    @Input
     Map<String, Object> envVariable = new HashMap<>()
 
     public AdmExtension(Project project, AlfaExtension alfa) {
         this.project = project;
         this.alfa = alfa
-        this.domainName = "DoNotUseMe"
     }
 
-    void basicCredentials(Closure c) {
+    void basicCredentials(@DelegatesTo(value = BasicCredentials, strategy = Closure.DELEGATE_FIRST) Closure c) {
         basicCredentials = new AdmExtension.BasicCredentials();
         project.configure(basicCredentials, c);
 
@@ -95,14 +91,21 @@ public class AdmExtension {
         envVariable.put(k,v)
     }
 
-    void oidcCredentials(Closure c) {
+    void oidcCredentials(@DelegatesTo(value = OidcCredentials, strategy = Closure.DELEGATE_FIRST) Closure c) {
         oidcCredentials = new AdmExtension.OidcCredentials();
-        oidcCredentials.realm(this.realm)
         project.configure(oidcCredentials, c);
     }
 
     void environment(String spec) {
         environment = spec
+    }
+
+    /**
+     * The AuthHub project of this remote (ASM7: the namespace); takes priority over the deprecated
+     * {@code alfa { project }}. Only the method form works: {@code project = 'x'} would assign Gradle's Project.
+     */
+    void project(String name) {
+        projectName = name
     }
 
     void host(String spec) {
@@ -119,11 +122,12 @@ public class AdmExtension {
                 "environment='" + environment + '\'' +
                 ", host='" + host + '\'' +
                 ", domainName='" + domainName + '\'' +
+                ", project='" + projectName + '\'' +
                 ", realm='" + realm + '\'' +
                 ", repoType='" + repoType + '\'' +
                 ", basicCredentials=" + basicCredentials +
                 ", oidcCredentials=" + oidcCredentials +
-                ", envVariable=" + envVariable +
+                ", envVariable=" + envVariable.keySet() +
                 '}';
     }
 
@@ -152,10 +156,9 @@ public class AdmExtension {
     public class OidcCredentials {
         String client_id;
         String client_secret;
-        String realm = "hub"
-        String token_uri = "/auth/realms/${realm}/protocol/openid-connect/token";
-        Property<String> access_token;
-        String privateToken = null;
+        // when set, these override the token endpoint of the remote, see AdmExtension.effectiveTokenUri()
+        String realm
+        String token_uri
 
         void realm(String spec) {
             realm = spec;
@@ -168,107 +171,14 @@ public class AdmExtension {
             client_secret = spec
         }
 
-        public String login() {
-            if (privateToken != null) {
-                return privateToken;
-            }
-            try {
-                if (client_id == null || client_secret == null) {
-                    throw new RuntimeException("Set client_id and client_secret");
-                }
-                //Create auth request
-                List<NameValuePair> bodyElements = new ArrayList<>();
-                bodyElements.add(new BasicNameValuePair("client_id", client_id));
-                bodyElements.add(new BasicNameValuePair("client_secret", client_secret));
-                bodyElements.add(new BasicNameValuePair("grant_type", "client_credentials"));
-                bodyElements.add(new BasicNameValuePair("scope", "openid"));
-                UrlEncodedFormEntity authBody = new UrlEncodedFormEntity(bodyElements, (Charset) null);
-                String fullURL = AdmExtension.this.host + token_uri;
-                project.logger.info("Preforming OIDC login to ADM at ${fullURL}")
-                HttpPost post = new HttpPost(fullURL);
-                post.setEntity(authBody);
-                CloseableHttpClient authClient = HttpClients.createDefault();
-                try {
-                    HttpResponse response = authClient.execute(post);
-
-                    //check auth response
-                    int responseCode = response.getStatusLine().getStatusCode();
-                    String responseText = EntityUtils.toString(response.getEntity());
-                    project.logger.info("Login call returned ${responseCode}")
-                    if (responseCode != 200) {
-                        throw new RuntimeException(
-                                "Failed to perform OpenId Connect authentication to ASM-ADM at " + fullURL + ". Response code: " + responseCode +
-                                        ". Response body '" + responseText + "'");
-
-                    }
-                    Map o = (Map) new JsonSlurper().parseText(responseText);
-                    privateToken = (String) o.get("access_token");
-                    project.logger.info("Successfully extracted token")
-                    return privateToken;
-                } finally {
-                    authClient.close();
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to login to ADM " + AdmExtension.this.name + " at URL:" + host, e);
-            }
-        }
-
         @Override
         public String toString() {
             return "OidcCredentials{" +
                     "client_id='" + client_id + '\'' +
                     ", client_secret='" + "*****" + '\'' +
+                    ", realm='" + realm + '\'' +
                     ", token_uri='" + token_uri + '\'' +
-                    ", access_token=" + "*******" +
                     '}';
         }
-    }
-
-
-    boolean equals(o) {
-        if (this.is(o)) return true
-        if (!(o instanceof AdmExtension)) return false
-
-        AdmExtension that = (AdmExtension) o
-
-        if (adsHttpPort != that.adsHttpPort) return false
-        if (alfa != that.alfa) return false
-        if (apiUrlPullAsmTemplate != that.apiUrlPullAsmTemplate) return false
-        if (apiUrlPullStandaloneTemplate != that.apiUrlPullStandaloneTemplate) return false
-        if (apiUrlPushAsmTemplate != that.apiUrlPushAsmTemplate) return false
-        if (apiUrlPushStandaloneTemplate != that.apiUrlPushStandaloneTemplate) return false
-        if (basicCredentials != that.basicCredentials) return false
-        if (domainName != that.domainName) return false
-        if (environment != that.environment) return false
-        if (host != that.host) return false
-        if (oidcCredentials != that.oidcCredentials) return false
-        if (process != that.process) return false
-        if (project != that.project) return false
-        if (tokenUri != that.tokenUri) return false
-        if (realm != that.realm) return false
-        if (repoType != that.repoType) return false
-
-        return true
-    }
-
-    int hashCode() {
-        int result
-        result = (environment != null ? environment.hashCode() : 0)
-        result = 31 * result + (host != null ? host.hashCode() : 0)
-        result = 31 * result + (domainName != null ? domainName.hashCode() : 0)
-        result = 31 * result + (tokenUri != null ? tokenUri.hashCode() : 0)
-        result = 31 * result + (apiUrlPushStandaloneTemplate != null ? apiUrlPushStandaloneTemplate.hashCode() : 0)
-        result = 31 * result + (apiUrlPushAsmTemplate != null ? apiUrlPushAsmTemplate.hashCode() : 0)
-        result = 31 * result + (apiUrlPullStandaloneTemplate != null ? apiUrlPullStandaloneTemplate.hashCode() : 0)
-        result = 31 * result + (apiUrlPullAsmTemplate != null ? apiUrlPullAsmTemplate.hashCode() : 0)
-        result = 31 * result + (adsHttpPort != null ? adsHttpPort.hashCode() : 0)
-        result = 31 * result + (basicCredentials != null ? basicCredentials.hashCode() : 0)
-        result = 31 * result + (oidcCredentials != null ? oidcCredentials.hashCode() : 0)
-        result = 31 * result + (project != null ? project.hashCode() : 0)
-        result = 31 * result + (process != null ? process.hashCode() : 0)
-        result = 31 * result + (alfa != null ? alfa.hashCode() : 0)
-        result = 31 * result + (realm != null ? realm.hashCode() : 0)
-        result = 31 * result + (repoType != null ? repoType.hashCode() : 0)
-        return result
     }
 }

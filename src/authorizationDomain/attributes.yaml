@@ -30,3 +30,7 @@ Attributes.currentTime:
   xacmlId: urn:oasis:names:tc:xacml:1.0:environment:current-time
   category: Environment
   datatype: time
+acme.adviceText:
+  xacmlId: acme.adviceText
+  category: Environment
+  datatype: string

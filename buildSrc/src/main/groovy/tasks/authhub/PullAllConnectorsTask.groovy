@@ -1,7 +1,5 @@
 package tasks.authhub
 
-import com.axiomatics.apd.authhub.client.AuthHubClient
-import com.axiomatics.apd.authhub.client.ProjectIdByName
 import com.axiomatics.apd.authhub.integration.AttributeConnectorPullAll
 import com.axiomatics.apd.authhub.services.AttributeConnectorService
 import extensions.AdmExtension
@@ -10,6 +8,7 @@ import tasks.GitOutputGuard
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
+import remote.RemoteConnection
 
 class PullAllConnectorsTask extends DefaultTask implements GitGuarded {
 
@@ -37,28 +36,17 @@ class PullAllConnectorsTask extends DefaultTask implements GitGuarded {
 
     @TaskAction
     void run() {
-        if (adm.oidcCredentials == null) {
-            throw new RuntimeException("Set oidcCredentials {} on adm " + adm.environment)
-        }
+        RemoteConnection remote = RemoteConnection.of(adm)
         File outputDir = projectDir.toPath().resolve(relativePath.get()).toFile()
         GitOutputGuard.check(this, projectDir, allowUnsafe, outputDir)
         outputDir.mkdirs()
 
-        logger.lifecycle("Pulling all attribute connectors from AuthHub at ${adm.host} to ${projectDir}")
-        def client = new AuthHubClient(adm.host, adm.oidcCredentials.client_id, adm.oidcCredentials.client_secret)
-        try {
-            def projectId = new ProjectIdByName(adm.alfa.namespace, client)
+        logger.lifecycle("Pulling all attribute connectors from ${remote.label} at ${remote.host} to ${projectDir}")
+        remote.withClient { client ->
+            def projectId = remote.projectId(client)
             def service = new AttributeConnectorService(client, projectId)
             def summary = new AttributeConnectorPullAll(service, projectDir.toPath(), relativePath.get()).execute()
             logger.lifecycle(summary.getMessage())
-        } finally {
-            client.close()
         }
-    }
-
-    void adm(Closure closure) {
-        closure.delegate = adm
-        closure.resolveStrategy = Closure.DELEGATE_FIRST
-        closure()
     }
 }
